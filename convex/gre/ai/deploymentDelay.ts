@@ -25,11 +25,12 @@
 //     earliest window with mana left for it. Mana does not carry over between
 //     turns (CR 500.5: the pool empties at each step's end).
 //
-// Only SORCERY-SPEED cards are charged their wait. A card with instant speed
-// (an instant, CR 304.1; flash, CR 702.8a) is held by choice until a window
-// it wants, the reading `latentFlashCreatureDiscount` already makes; it
-// still takes its mana from the schedule — a held answer holds that mana up,
-// and the hand behind it waits for it.
+// Only SORCERY-SPEED cards are scheduled. A card with instant speed (an
+// instant, CR 304.1; flash, CR 702.8a) is held by choice until a window it
+// wants, the reading `latentFlashCreatureDiscount` already makes; it neither
+// waits nor takes mana from the schedule. Read the other way (a held answer
+// holding mana up so the hand behind it waits), every one-ply Eval Pair that
+// holds an answer reads the hold as a loss.
 //
 // A card's WAIT is the QUEUE it stands in: the index of its window less the
 // index of the first window that could cast it alone, both capped at

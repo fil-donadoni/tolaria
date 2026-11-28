@@ -2569,7 +2569,7 @@ function deploymentBaseFor(
 /** The hand term: the latent worth of every card `player` holds, each
  *  sorcery-speed one discounted by the turns it queues behind the rest of the
  *  hand for their mana base (`ai/deploymentDelay.ts`; a card with instant
- *  speed takes its mana but is held by choice, so takes no delay).
+ *  speed is held by choice and stays out of the schedule).
  *
  *  Latent worth (ADR 0018): each card's `cardValue`, valued against THIS
  *  board — a targeted, board-affecting Op in its script prices at the
@@ -2623,7 +2623,12 @@ function heldCardsWorth(
         );
         worths.push(worth);
         total += worth;
-        if (weights.deploymentDelayDecay < 1 && castable.has(c) && !isLand(c)) {
+        if (
+            weights.deploymentDelayDecay < 1 &&
+            castable.has(c) &&
+            !isLand(c) &&
+            !hasInstantSpeed(c)
+        ) {
             cast.push(i);
             // CR 601.2f — the total cost after every increase and reduction.
             castCosts.push(
@@ -2647,10 +2652,7 @@ function heldCardsWorth(
         )
     );
     for (let k = 0; k < cast.length; k++) {
-        // A card with instant speed is held by choice: the mana it is held up
-        // with is mana the rest of the hand cannot spend, but its own wait is
-        // free.
-        if (waits[k] === 0 || hasInstantSpeed(held[cast[k]])) continue;
+        if (waits[k] === 0) continue;
         total -=
             worths[cast[k]] *
             (1 - deploymentShare(waits[k], weights.deploymentDelayDecay));
