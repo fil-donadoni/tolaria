@@ -10,8 +10,11 @@
 //
 // Three layers: the term on hand-built edges (how much each child earns),
 // the gate (which node earns it), then the REAL search on the Caustic Bronco
-// twin, where the prior is what turns `pass` from losing on every seed into
-// the pick.
+// twin, where the prior widens `pass`'s subtree margin lead over the saddle.
+// Since the horizon is read on the root's clock (ADR 0015 Amendment I) the
+// tree stops at the boundary and `pass` leads without the prior too, by
+// about half the margin; before, the prior was what turned it from losing
+// on every seed into the pick.
 import { afterEach, describe, expect, it } from "vitest";
 import { BLADE_SCENARIOS } from "../blade/scenarios";
 import { buildBladeState } from "../blade/build";
@@ -218,9 +221,16 @@ describe("the Saturation Prior through the real search (issue #9095)", () => {
         expect(chosen).toBe("pass");
     });
 
-    it("without the prior the even spread dilutes `pass` and the saddle wins", () => {
+    it("without the prior the even spread dilutes `pass`: its margin lead shrinks", () => {
+        const lead = () => {
+            const { byLabel } = twinRoot();
+            const pass = byLabel.get("pass")!;
+            const saddle = [...byLabel.values()].find((c) => c !== pass)!;
+            return pass.meanMargin - saddle.meanMargin;
+        };
+        const withPrior = lead();
         setSearchVariant(LADDER_VARIANTS["no-saturation-prior"]);
-        const { chosen } = twinRoot();
-        expect(chosen).not.toBe("pass");
+        const withoutPrior = lead();
+        expect(withPrior).toBeGreaterThan(withoutPrior);
     });
 });
