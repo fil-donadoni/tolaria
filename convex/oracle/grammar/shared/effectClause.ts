@@ -757,11 +757,16 @@ export type EffectSentenceIR =
           readonly condition: CardCountConditionIR;
       }
     /**
-     * CR 701.20a — "reveal a card at random from your hand": one card of the
-     * controller's hand, picked by the seeded PRNG, kept as the card a later
-     * "if that card has the chosen name" sentence reads.
+     * CR 701.20a — "reveal a card at random from your hand" / "Target
+     * opponent reveals a card at random from their hand": one card of
+     * `player`'s hand, picked by the seeded PRNG, kept as the card a later
+     * "if that card has the chosen name" or "that card's mana value" reads.
+     * The card stays in the hand it was revealed from.
      */
-    | { readonly kind: "reveal-random-hand-card" }
+    | {
+          readonly kind: "reveal-random-hand-card";
+          readonly player: PlayerRefIR;
+      }
     /**
      * CR 201.2a / 701.20a — "If that card has the chosen name, <effect>": the
      * gate reads the card the preceding `reveal-random-hand-card` showed
@@ -6449,6 +6454,8 @@ const EXILE_REST = /^Exile the rest$/;
 const LOOK_HAND = /^Look at (.+?)(?:'|’)s hand$/;
 /** CR 400.2 — "Look at a card at random in target player's hand". */
 const LOOK_RANDOM_HAND = /^Look at a card at random in (.+?)(?:'|’)s hand$/;
+/** CR 701.20a — "<player> reveals a card at random from their hand". */
+const REVEAL_RANDOM_HAND = /^(.+) reveals a card at random from their hand$/;
 /** CR 701.9b — "Target player discards two cards": the player's own choice. */
 const DISCARD_CHOICE = /^(.+) discards (\S+) cards?$/;
 /** CR 701.9b — "Discard a card": the controller discards one of their choice. */
@@ -8420,7 +8427,10 @@ function chosenNameSentence(span: string, ctx: unknown) {
                     kind: "name-card" as const,
                     prompt: "Choose a card name.",
                 },
-                { kind: "reveal-random-hand-card" as const },
+                {
+                    kind: "reveal-random-hand-card" as const,
+                    player: { kind: "you" as const },
+                },
             ],
         } satisfies SentenceIR);
     const gate = span.match(IF_REVEALED_HAS_CHOSEN_NAME);
@@ -11073,6 +11083,21 @@ function effectSentence(
         return ok({
             kind: "delayed-draw-next-upkeep" as const,
             count,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── a random card of another player's hand, revealed (CR 701.20a) ──────
+    // "their hand" agrees with a third-person subject; the controller's own
+    // form is printed "reveal a card at random from your hand" and is read
+    // only inside the Cursed Scroll sentence (`chosenNameSentence`).
+    const revealRandom = span.match(REVEAL_RANDOM_HAND);
+    if (revealRandom !== null) {
+        const player = playerSubject(revealRandom[1]!, ctx);
+        if (player === null || player.kind === "you")
+            return fail(`"${revealRandom[1]}" is not a player`, span);
+        return ok({
+            kind: "reveal-random-hand-card" as const,
+            player,
         } satisfies EffectSentenceIR);
     }
 

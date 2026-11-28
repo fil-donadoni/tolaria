@@ -770,6 +770,24 @@ function lowerActedOnCharacteristic(
     const phrase = ACTED_ON_PHRASE[noun];
     const word = ACTED_ON_WORD[characteristic];
     const actedOn = walk.actedOn;
+    // CR 701.20a + CR 202.3 — "that card's mana value" after a random reveal:
+    // the revealed card never left its hand, so the value is read off the
+    // picks binding IN that hand (an empty hand revealed nothing: 0).
+    const revealedFrom = walk.revealedAtRandom;
+    if (
+        actedOn === null &&
+        revealedFrom !== null &&
+        noun === "card" &&
+        characteristic === "manaValue"
+    )
+        return lowered({
+            sum: {
+                of: { ref: REVEALED_CARD_BINDING },
+                read: "manaValue",
+                zone: "hand",
+                player: revealedFrom,
+            },
+        });
     if (actedOn === null)
         return unlowerable(
             `"${phrase} ${word}" names no object acted on before it (CR 608.2h)`
@@ -1525,6 +1543,13 @@ export class SentenceWalk {
      * so the anaphora binds to nothing it was not written for.
      */
     libraryLookedAt: EffectPlayerRef | null = null;
+    /**
+     * CR 701.20a — the player whose hand the last "reveals a card at random"
+     * sentence revealed from: the revealed card is still in that hand, so
+     * "that card's mana value" in a later sentence reads the picks binding
+     * there. Set by that lowering only.
+     */
+    revealedAtRandom: EffectPlayerRef | null = null;
     /**
      * CR 608.2h — the announced object the last sentence acted on, with the
      * Op that acted on it: the referent of "that creature's mana value" in
@@ -4821,17 +4846,22 @@ function lowerSentenceBody(
                         : { nameRestriction: sentence.restriction }),
                 },
             ]);
-        case "reveal-random-hand-card":
-            // CR 701.20a — one random card of the controller's hand.
+        case "reveal-random-hand-card": {
+            // CR 701.20a — one random card of the player's hand, revealed
+            // where it stays; the picks binding is what "that card" reads.
+            const player = playerRef(sentence.player, slots, site);
+            if (!player.ok) return player;
+            walk.revealedAtRandom = player.value;
             return lowered([
                 {
                     op: "reveal",
-                    player: "controller",
+                    player: player.value,
                     zone: "hand",
                     random: true,
                     bind: REVEALED_CARD_BINDING,
                 },
             ]);
+        }
         case "named-card-reveal-gate": {
             // CR 201.2a — the revealed card is still in the hand when asked.
             const inner = gatedSentence(sentence.effect, walk, site);
