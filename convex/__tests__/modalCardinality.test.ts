@@ -37,6 +37,7 @@ import {
 } from "../gre/state";
 import { applyPendingChoiceSubmit } from "../gre/pendingChoiceSubmit";
 import { compactState, expandState } from "../gre/serialize";
+import { GOLDEN_FIXTURES } from "../oracle/grammar/fixtures";
 
 const PING: SpellMode = {
     id: "ping",
@@ -285,6 +286,128 @@ describe("ModeSelection — announcement bounds (CR 700.2a / 700.2d)", () => {
                 "draw",
                 "discard",
             ]);
+        });
+    });
+});
+
+// CR 700.2i / 107.18 — "Choose up to five {P} worth of modes": the server
+// bounds the announcement by the chosen modes' summed pawprints.
+describe("pawprint budget (CR 700.2i)", () => {
+    const paw = (mode: SpellMode, pawprints: number): SpellMode => ({
+        ...mode,
+        pawprints,
+    });
+    const season: CardDefinition = {
+        ...probe({ min: 1, max: 5, repeats: true, pawprintBudget: 5 }),
+        modes: [paw(PING, 1), paw(DRAW, 2), paw(DISCARD, 3)],
+    };
+
+    it("refuses a list over the budget though the count has room", async () => {
+        await withTemporaryDefinitionAsync(season, async () => {
+            const harness = makeMutationCtx("p1", [gameStateSeed(board({}))]);
+            await expect(
+                announce(harness, ["discard", "discard"])
+            ).rejects.toThrow(/at most 5 \{P\}/);
+            await expect(
+                announce(harness, ["draw", "draw", "draw"])
+            ).rejects.toThrow(/at most 5 \{P\}/);
+        });
+    });
+
+    it("a list spending the whole budget resolves every instance", async () => {
+        await withTemporaryDefinitionAsync(season, async () => {
+            const harness = makeMutationCtx("p1", [
+                gameStateSeed(
+                    board({
+                        oppCreatures: [
+                            creature(grizzlyBears().id, "bears", "p2"),
+                        ],
+                    })
+                ),
+            ]);
+            // 1 + 2 + 2 = 5 {P}.
+            await announce(harness, ["draw", "ping", "draw"]);
+            await target(harness, ["bears"]);
+            const state = harness.state();
+            expect(top(state).chosenModeIds).toEqual(["ping", "draw", "draw"]);
+            const handBefore = state.players[0].hand.length;
+            resolveTopOfStack(state);
+            expect(
+                state.players[1].battlefield.find((c) => c.id === "bears")
+                    ?.damageMarked
+            ).toBe(1);
+            expect(state.players[0].hand.length).toBe(handBefore + 2);
+        });
+    });
+
+    it("the compiled Season of the Burrow resolves its two- and three-{P} modes", async () => {
+        const fixture = GOLDEN_FIXTURES.find(
+            (f) => f.card.name === "Season of the Burrow"
+        )!;
+        const compiled: CardDefinition = {
+            ...hullBreach(),
+            ...(fixture.expected as unknown as Partial<CardDefinition>),
+            id: hullBreach().id,
+            manaCost: {},
+        };
+        await withTemporaryDefinitionAsync(compiled, async () => {
+            const seed = board({
+                oppCreatures: [creature(grizzlyBears().id, "bears", "p2")],
+            });
+            seed.players[0].graveyard.push(
+                makeInstance(grizzlyBears().id, {
+                    id: "dead-bears",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "graveyard",
+                })
+            );
+            seed.players[1].library.push(
+                makeInstance(plains().id, {
+                    id: "opp-lib",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    zone: "library",
+                })
+            );
+            const harness = makeMutationCtx("p1", [gameStateSeed(seed)]);
+            const [, exileMode, returnMode] = compiled.modes!;
+            await expect(
+                announce(harness, [returnMode.id, returnMode.id])
+            ).rejects.toThrow(/at most 5 \{P\}/);
+            await announce(harness, [returnMode.id, exileMode.id]);
+            await runMutation(
+                selectTargets as unknown as Handler<
+                    Record<string, unknown>,
+                    void
+                >,
+                harness.ctx,
+                {
+                    ...BASE,
+                    targets: [
+                        { targetType: "permanent", targetId: "bears" },
+                        {
+                            targetType: "graveyard-card",
+                            targetId: "dead-bears",
+                            targetPlayerId: "p1",
+                        },
+                    ],
+                }
+            );
+            const state = harness.state();
+            const oppHand = state.players[1].hand.length;
+            resolveTopOfStack(state);
+            // CR 608.2h — the exiled permanent's controller draws.
+            expect(state.players[1].hand.length).toBe(oppHand + 1);
+            expect(
+                state.players[1].battlefield.some((c) => c.id === "bears")
+            ).toBe(false);
+            // CR 122.6 — the returned card enters with its indestructible
+            // counter on it.
+            const back = state.players[0].battlefield.find(
+                (c) => c.id === "dead-bears"
+            );
+            expect(back?.counters?.indestructible).toBe(1);
         });
     });
 });

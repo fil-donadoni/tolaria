@@ -283,7 +283,7 @@ function readModeLines(
             const paw = line.match(PAWPRINT_MODE_LINE);
             if (paw === null)
                 return fail(`"${line}" is not a pawprint mode line`, span);
-            // CR 107.18 — each {P} is three characters.
+            // CR 107.18 — the pawprint symbol is {P}; one weight per symbol.
             pawprints = paw[1]!.length / "{P}".length;
             body = line.slice(paw[0].length);
         }
