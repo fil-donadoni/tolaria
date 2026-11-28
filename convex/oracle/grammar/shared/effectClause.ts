@@ -6488,7 +6488,7 @@ const RETURN_ALL_FROM_GRAVEYARD =
 /** CR 113.6b — "return this card from your graveyard to your hand". */
 const RETURN_SELF_FROM_GRAVEYARD =
     /^Return this card (?:from your graveyard )?to your hand$/;
-/** CR 113.6b + CR 110.5b — "Return this card from your graveyard to the
+/** CR 113.6m + CR 110.5b — "Return this card from your graveyard to the
  *  battlefield [tapped]": the source reanimates itself, entering tapped when
  *  the rider says so. */
 const RETURN_SELF_FROM_GRAVEYARD_TO_BATTLEFIELD =
