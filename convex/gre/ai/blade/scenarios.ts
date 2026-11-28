@@ -18205,7 +18205,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // one-drops and it draws no land, so its mana stays at six. Removing
         // the Trinisphere first leaves three mana for all three Lions this
         // turn; a Lion first, or the Weaponry, leaves room for one more taxed
-        // spell. With filler basics in the library the land drop let "Lion
+        // spell. The closest rival, two taxed Lions with the Disenchant held,
+        // ends a Lion behind this turn and the next. With filler basics in the library the land drop let "Lion
         // now, Disenchant + Lion next turn" tie the removal line (issue
         // #10820), so the library is explicit and land-free; the opponent's
         // holds basics only so neither seat decks out inside the search.
@@ -18217,13 +18218,13 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // castable-now creature at its whole body at that stop fixed the entry
         // and turned ten other `must` entries red (pass over cast: the hand
         // read as already deployed), so the board was moved inside the turn
-        // and the three-mana horizon effect is tracked on its own issue.
+        // and the three-mana horizon effect is tracked by issue #11049.
         label: "cost-modifier pricing: Disenchant takes the Trinisphere taxing the bot's hand of one-drops, not the 2-MV artifact (issue #5363)",
         classification: {
             kind: "conditional",
             discriminant: {
                 kind: "card",
-                detail: "The bot's hand and land-free library are one-drops, each taxed from one mana to three, on a mana base that stays at three.",
+                detail: "The bot's hand and land-free library are one-drops, each taxed from one mana to three, on a mana base that stays at six.",
             },
         },
         spec: {
