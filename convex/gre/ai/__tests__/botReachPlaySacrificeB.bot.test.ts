@@ -9,16 +9,28 @@ import { BOT_REACH_BUDGET, playBotReachSeats } from "../botReach";
 
 describe("Bot-play sweep (ADR 0105 § 7.2) — sacrifice creatures, second half", () => {
     // Issue #4273: an instant whose only effect grants an ability to a target
-    // creature; the race it decides is posed by the sweep's positions.
-    it("played — an instant that grants an ability to a target creature", () => {
-        for (const name of [
-            "Defy Gravity",
-            "Double Cleave",
-            "Unnatural Speed",
-        ]) {
-            expect(playBotReachSeats(getCardByName(name)), name).toEqual([
-                { holderId: "p1", verdict: { outcome: "played" } },
-                { holderId: "p2", verdict: { outcome: "played" } },
+    // creature until end of turn. Measured from where each rollout started,
+    // every `played` seat was a cast in the opponent's end step, where the
+    // grant expires unused. On the root clock (ADR 0015 Amendment I) the
+    // holder's main-phase cast ties `pass` inside `outcomeEps`, so
+    // `last-window-deferral` holds it, and the end step no longer credits the
+    // dead grant: one seat of the six still plays it.
+    it("an until-end-of-turn grant to a target creature: held, but for one seat", () => {
+        const seats = (name: string) =>
+            playBotReachSeats(getCardByName(name)).map((s) => [
+                s.holderId,
+                s.verdict.outcome,
+                "cause" in s.verdict ? s.verdict.cause : undefined,
+            ]);
+        const held = ["ignored", "never-chosen"];
+        expect(seats("Defy Gravity")).toEqual([
+            ["p1", "played", undefined],
+            ["p2", ...held],
+        ]);
+        for (const name of ["Double Cleave", "Unnatural Speed"]) {
+            expect(seats(name), name).toEqual([
+                ["p1", ...held],
+                ["p2", ...held],
             ]);
         }
     }, 600_000);

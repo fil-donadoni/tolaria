@@ -85,7 +85,11 @@ describe("search: a move arming the opponent's Oath (issue #8734)", () => {
     // for loyalty-tick dominance at each enumeration, so even two seeds pass
     // the 60 s default under runner load: the budget is explicit (fixed
     // iterations, never time).
-    it("Oko takes its +2, keeping creatures level, on the discriminating seeds", () => {
+    // Keeping creatures level is the +2 now or `pass`: the precombat main
+    // is not the turn's last sorcery-speed window, and on the root clock
+    // (ADR 0015 Amendment I) the two sit inside `outcomeEps`: the `pass`
+    // line can still take the +2 in the postcombat main.
+    it("Oko keeps creatures level — its +2, or a pass to a later window — on the discriminating seeds", () => {
         const result = runBladeScenario({
             ...entry(ANCHOR),
             seeds: [0xb1ade, 2],
@@ -93,6 +97,7 @@ describe("search: a move arming the opponent's Oath (issue #8734)", () => {
         expect(result.ok, result.failureMessage).toBe(true);
         expect(result.seeds.map((s) => s.seed)).toEqual([0xb1ade, 2]);
         for (const seed of result.seeds) {
+            if (seed.move?.kind === "pass") continue;
             expect(seed.move, seed.moveDescription).toMatchObject({
                 kind: "activate-ability",
                 abilityId: "oko-thief-of-crowns-plus2",

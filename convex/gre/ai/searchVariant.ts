@@ -78,20 +78,9 @@ export type ActionPriorConfig = {
     fpu: number;
 };
 
-/** Where a rollout stops, measured on the search ROOT's clock (ADR 0015,
- *  issue #10816). `next-bot-main`: the precombat main phase of the first turn
- *  after the root's on which the Bot is the active player — a rollout stops
- *  there, and the tree stops descending there and scores the leaf.
- *  Production (no variant) measures the horizon from where each rollout
- *  starts: the start of the Bot's next turn after the rollout's own. */
-export type RolloutHorizon = "next-bot-main";
-
 export type SearchVariant = {
     /** Registry name — recorded in ladder JSONL headers and reports. */
     name: string;
-    /** The root-clock rollout horizon (issue #10816). Absent = production:
-     *  the horizon is measured from where each rollout starts. */
-    rolloutHorizon?: RolloutHorizon;
     /** Priors + FPU on the ordinary action space (issue #2684). Absent =
      *  production behaviour, `DEFAULT_ACTION_PRIORS` (issue #8700). `null` turns
      *  them off: flat UCB1 and uniform-random expansion, the A/B control arm. */
@@ -304,16 +293,6 @@ export function resolveOpponentModel(
     return variant?.opponentModel ?? null;
 }
 
-/** Resolve the ACTIVE rollout horizon for one search (issue #10816). `null` —
- *  every search outside a variant run — is the production horizon, read from
- *  each rollout's start. Consulted once per search in `search.ts` and threaded
- *  down to the tree and the rollout, like the other knobs. */
-export function resolveRolloutHorizon(
-    variant: SearchVariant | null
-): RolloutHorizon | null {
-    return variant?.rolloutHorizon ?? null;
-}
-
 /** Resolve the root rules disabled for one search (issue #3399). Same
  *  discipline as the resolvers above — read ONCE, at the top of
  *  `runSearchWithTrace`, and threaded into `selectRootMove` explicitly, so
@@ -420,14 +399,6 @@ export function noRuleVariant(spec: string): SearchVariant {
  *  The noise floor is what `placebo` below measures. Judge a candidate's win
  *  rate against THAT, never against a null run's tautological 50%. */
 export const LADDER_VARIANTS: Record<string, SearchVariant> = {
-    /** The rollout horizon on the root's clock (PRD issue #10815, issue
-     *  #10816): every candidate scored at the Bot's next precombat main phase
-     *  after the root's turn, the tree clipped there. Off by default until
-     *  its census reds are fixed and the default flips (issue #9934). */
-    "horizon-b": {
-        name: "horizon-b",
-        rolloutHorizon: "next-bot-main",
-    },
     /** The noise-floor baseline (issue #1929). Same policy, same budget, same
      *  rules — only WHICH determinizations ISMCTS samples differs, so it is
      *  strength-neutral by construction and every point it scores away from
@@ -475,8 +446,9 @@ export const LADDER_VARIANTS: Record<string, SearchVariant> = {
     /** The control arm of the Saturation Prior (issue #9095,
      *  `saturationPriorTerms` in `search.ts`): in-tree selection back to
      *  UCB1/PUCT alone, visits spread evenly over a saturated node's
-     *  children. `BLADE_VARIANT=no-saturation-prior bun run test:blade` reds
-     *  the Caustic Bronco twin. */
+     *  children. On the Caustic Bronco twin it halves `pass`'s subtree
+     *  margin lead; since the horizon is read on the root's clock (ADR 0015
+     *  Amendment I) it no longer flips that entry's pick. */
     "no-saturation-prior": {
         name: "no-saturation-prior",
         evalWeights: { saturationPriorC: 0 },

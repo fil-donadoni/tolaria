@@ -1220,7 +1220,7 @@ function isNoOpChoiceDelta(baseline: GameState, probe: GameState): boolean {
 //
 // "Untap up to two lands" (Cloud of Faeries, Frantic Search, Time Spiral's
 // all-controllers pool) answered with nothing, or with the OPPONENT's lands.
-// The rollout scores at the start of the bot's next turn — AFTER its untap
+// The rollout scores at the bot's next precombat main phase — AFTER its untap
 // step (CR 502.3) — so every answer's leaf has the same lands untapped and
 // the whole difference is washed out: the answers tie inside `outcomeEps`, a
 // signed prior does not move the visit split enough to matter (measured), and

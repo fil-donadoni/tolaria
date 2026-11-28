@@ -2,7 +2,9 @@
 
 _Maintenance 2026-11-08 (issue #8723): citations of the client-side ISMCTS decision now cite the record by its file number, ADR 0000._
 
-**Status:** Accepted (2026-06-16)
+**Status:** Accepted (2026-06-16); amended 2026-11-28 (Amendment I, issue
+#9934: the horizon is measured on the search root's clock, at the Bot's next
+precombat main phase, and bounds the tree too)
 
 **Refines:** [ADR 0000](0000-ai-opponent-client-side-ismcts.md) (the rollout
 truncation parameter of the client-side ISMCTS opponent).
@@ -83,7 +85,8 @@ never advance the turn).
 
 - `ROLLOUT_DEPTH = 8` (a fixed ply count) is replaced in `search.ts` by a
   turn-clock horizon: `rollout` stops at the START of the bot's next turn
-  (`ROLLOUT_EXTRA_BOT_TURNS = 0` extra full turns), bounded by
+  (measured on the search root's clock, at its precombat main phase, since
+  Amendment I), bounded by
   `MAX_ROLLOUT_TURNS = 6` and a `MAX_ROLLOUT_PLIES = 300` backstop against stall
   loops. `DEFAULT_BUDGET.timeMs` is raised 300 → **1500 ms** so the 400-iteration
   budget completes despite the longer (full-round) rollouts.
@@ -92,6 +95,54 @@ never advance the turn).
   eval blind spot (drawing zero cards is scored as non-negative), NOT a horizon
   artifact. The horizon fix removes the _action bias_ at the live budget; the
   leaf-eval blindness is the deferred Forge-comparison eval enrichment.
+
+## Amendment I (issue #9934) — the horizon is measured on the search root's clock
+
+The decision above says every candidate is judged "after the same game-clock
+progress", but the implementation measured the boundary from the turn each
+**rollout started** in. A tree line made of single forced-looking moves (pass,
+opponent pass, pass, …) is deepened by PUCT past the bot's next turn; its
+rollouts then started on that turn and played on a further round, while a
+branching line stayed shallow and was scored a round earlier. The narrow line
+was credited with a payoff the branching one was never asked to reach
+(measured on the issue #9838 bounce-land entry: the `pass` edge's rollouts
+started a turn later and outscored the float edge inside `outcomeEps`).
+
+**The reference is the search root's clock.** One boundary holds for every
+leaf of one search: the **precombat main phase of the first turn after the
+root's on which the bot is the active player** (`pastRootHorizon`,
+`search.ts`; a tracker per iteration records that turn the first time it
+sees it). Both players have had a complete turn's chance to act, and the
+bot's own untap, upkeep and draw have happened, at the same point for every
+candidate. Two seams hold it:
+
+- `rollout` reads it from the iteration's tracker, so a rollout that starts
+  at or past the boundary scores at once;
+- **the tree stops descending there**: a node at the boundary is a leaf,
+  scored where every other line's rollout stops, and is never expanded.
+
+**Why the precombat main and not the turn start.** The owner chose it on
+2026-11-26 from a six-arm hosted census of the `must` tier (PRD issue #10815,
+issue #9934's comments). A boundary at the bot's next turn START with the tree
+stopped there redded 14 entries: their payoff sits in the bot's next beginning
+phase (an upkeep cost owed, the draw after a scry or an explore, a tax on next
+turn's casts). Bounding the rollouts alone (the tree descending freely) redded
+6 but does not keep the invariant. A later boundary (the end of the bot's next
+turn, or its second next turn) redded 33–36 and was 23–63% slower than the
+base. The precombat main redded 7, and the entries red on the root clock
+since were repaired before this amendment too: by a term in the evaluation
+(issues #10818–#10822, #10925, #10986), by the search reading a line on the
+root clock where it still did not (issues #10882, #11033), or by a blade
+board that poses the decision it names (issue #11032) — never by a change to
+the horizon. It costs fewer milliseconds per iteration than the old horizon,
+since the deep pass-chain lines no longer play a further round.
+
+`ROLLOUT_EXTRA_BOT_TURNS` (always `0`) is retired, and so is the `horizon-b`
+search variant that carried the design while its reds were repaired: a count
+of further bot turns cannot be read off a state measured from the root, and
+nothing ever set it. `MAX_ROLLOUT_TURNS` stays a stall cap counted from the
+rollout's own start. A rollout called on its own (a test, a probe) treats the
+state it starts from as its root.
 
 ## Alternatives rejected
 
