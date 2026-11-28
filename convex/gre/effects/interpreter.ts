@@ -3419,7 +3419,7 @@ function bottomLookedAtCards(
  *  (issue #7694 — "on the bottom of your library in a random order"). */
 /** `lookDistribute`'s keep router (issue #2070): the kept cards go to their
  *  keep zone. A picked id that has since left the library is a no-op in every
- *  primitive (CR 608.2b).
+ *  primitive (CR 101.3).
  *    - `"hand"` — `moveCardById` library → hand.
  *    - `"battlefield"` (Aang, at the Crossroads) — a CR 400.7 zone change
  *      through `putFromLibraryOntoBattlefield`: the card is PUT, never cast

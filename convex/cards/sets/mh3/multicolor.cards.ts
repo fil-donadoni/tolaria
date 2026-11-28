@@ -309,11 +309,12 @@ export const naduWingedWisdom = defineCard(() => ({
 // library. You may put a land card from among them onto the battlefield
 // tapped. If you don't, put a card from among them into your hand. Put the
 // rest on the bottom of your library in a random order."
-//   - CR 401.4 — one `lookDistribute` over the top four: the optional land
-//     keep goes onto the battlefield, entering tapped (CR 110.5b).
+//   - One `lookDistribute` over the top four: the optional land keep goes
+//     onto the battlefield, entering tapped (CR 110.5b).
 //   - CR 608.2c — "If you don't" reads the first keep: with no land put,
 //     `otherwise` puts exactly one looked-at card into hand.
-//   - The rest go to the bottom unordered and unknown (`randomBottom`).
+//   - The rest go to the bottom with no ordering pick and no knowledge
+//     granted (`randomBottom`; CR 401.4 — the owner doesn't reveal the order).
 //
 // hand-tail: Look at the top four cards of your library. You may put a land card from among them onto the battlefield tapped. If you don't, put a card from among them into your hand. Put the rest on the bottom of your library in a random order. (#10542)
 export const planarGenesis = defineCard(() => ({
