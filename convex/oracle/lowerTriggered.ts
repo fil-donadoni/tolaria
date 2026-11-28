@@ -104,6 +104,17 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             return { kind: "left", scope: head.scope };
         case "enters-or-leaves":
             return { kind: "enters-or-leaves" };
+        case "enters-or-sacrificed":
+            return { kind: "enters-or-sacrificed" };
+        // CR 603.6c + CR 700.4 — "without dying" is every exit but the one to
+        // a graveyard, for a creature of yours (the source among them).
+        case "leaves-without-dying":
+            return {
+                kind: "left",
+                scope: head.scope,
+                filter: CREATURE_FILTER,
+                toZone: ["exile", "hand", "library"],
+            };
         case "sacrificed":
             return {
                 kind: "sacrificed",

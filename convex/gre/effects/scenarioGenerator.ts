@@ -230,10 +230,16 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     died: (head) =>
         !("scope" in head && (head.scope === "self" || head.scope === "host")),
     // CR 603.6c — the source's own departure, the case this paragraph names.
-    left: () => false,
+    // A `yours` scope ("this creature or another creature you control leaves
+    // the battlefield without dying") is about ANOTHER creature leaving with
+    // the source still there.
+    left: (head) => "scope" in head && head.scope === "yours",
     // CR 603.6a / 603.6c — the line fires on both; the ENTRY half, with the
     // source on the battlefield, is the one a canned scenario seeds.
     "enters-or-leaves": () => true,
+    // CR 603.6a / 701.21a — likewise the entry half of the enters-or-sacrifice
+    // line.
+    "enters-or-sacrificed": () => true,
     // CR 701.21a — the source watches ANOTHER permanent (a land) sacrificed.
     sacrificed: () => true,
     // CR 701.23a — the source watches an opponent search, and stays put.

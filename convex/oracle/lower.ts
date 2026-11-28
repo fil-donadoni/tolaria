@@ -69,6 +69,7 @@ import type { Phase } from "../gre/types";
 import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
 import { readTypeLine } from "./typeLine";
 import type { KeywordIR, LineParse, SlotIR } from "./grammar/ir";
+import type { TriggerHeadIR } from "./grammar/shared/triggerHead";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
 import { CYCLING_ABILITY_ID, cyclingAbility } from "../cards/abilities/cycling";
 import {
@@ -490,6 +491,13 @@ function lowerQuotedAbility(
             : lowered;
     }
     if (ir.kind === "triggered") {
+        // CR 201.5 — a granted ability's "this creature" is whatever object
+        // gains it, whose printed types this card does not state.
+        if (readsSelfOrAnother(ir.head))
+            return {
+                ok: false,
+                reason: 'a granted "this or another" head has no printed source to check',
+            };
         censusGrantedKeywords(ir.effects, acc);
         const lowered = lowerTriggeredAbility({
             id: quoted.id,
@@ -1458,6 +1466,35 @@ function readPt(
     return Number(value);
 }
 
+/** A "<self> or another <noun> you control" head (`matchSelfOrAnotherHead`). */
+function readsSelfOrAnother(head: TriggerHeadIR): boolean {
+    return (
+        (head.kind === "enters" && head.orSelf === true) ||
+        head.kind === "leaves-without-dying"
+    );
+}
+
+/**
+ * CR 201.5 + CR 109.2 — "this creature or another Bird you control" reads as
+ * "a Bird you control" (scope `yours` + the noun's filter) only when the source
+ * is itself a creature of that type. Checked against the PRINTED type line, so
+ * a card whose own subtypes lack the noun's is refused, never read as if it had
+ * them (fail-closed, ADR 0105 § 2).
+ */
+function selfOrAnotherRefusal(
+    ir: SlotIR,
+    typeLine: ParsedTypeLine
+): string | null {
+    if (ir.kind !== "triggered" || !readsSelfOrAnother(ir.head)) return null;
+    if (!typeLine.types.includes("Creature"))
+        return 'a "this creature or another" head on a card that is no creature';
+    const named = ir.head.kind === "enters" ? (ir.head.subtypes ?? []) : [];
+    const missing = named.filter((t) => !typeLine.subtypes.includes(t));
+    return missing.length > 0
+        ? `a "this creature or another ${missing.join(", ")}" head on a card that is no ${missing.join(", ")}`
+        : null;
+}
+
 export function lowerCard(
     card: OracleCard,
     typeLine: ParsedTypeLine,
@@ -1533,6 +1570,9 @@ export function lowerCard(
         const err = lowerLine(line, card, acc);
         if (err !== null)
             return { ok: false, reason: err, fragment: line.line };
+        const printed = selfOrAnotherRefusal(line.ir, typeLine);
+        if (printed !== null)
+            return { ok: false, reason: printed, fragment: line.line };
     }
     // CR 702.155a — Read ahead changes when every chapter on the card can
     // trigger, so a Saga printing it is not one definition short of a keyword
