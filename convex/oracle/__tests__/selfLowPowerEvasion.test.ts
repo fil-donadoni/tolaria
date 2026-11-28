@@ -36,6 +36,21 @@ const STEEL_LEAF_CHAMPION = oracleCard({
     toughness: "4",
 });
 
+const STOMPER_LINE =
+    "This Vehicle can't be blocked by creatures with power 2 or less.";
+const CREW_5 =
+    "Crew 5 (Tap any number of creatures you control with total power 5 or more: This Vehicle becomes an artifact creature until end of turn.)";
+
+const DEMOLITION_STOMPER = oracleCard({
+    oracleId: "282e5e5f-365a-4e11-aeac-ead71d1cf68a",
+    name: "Demolition Stomper",
+    manaCost: "{6}",
+    typeLine: "Artifact — Vehicle",
+    oracleText: `${STOMPER_LINE}\n${CREW_5}`,
+    power: "10",
+    toughness: "7",
+});
+
 function compiled(card: ReturnType<typeof oracleCard>): CardDefinition {
     const outcome = compileCard(card);
     if (outcome.state !== "ready")
@@ -69,6 +84,55 @@ describe("can't be blocked by creatures with power N or less (CR 509.1b)", () =>
                         neverAgainst: { power: { max: 2 } },
                     },
                 ],
+            })
+        );
+    });
+
+    it("Demolition Stomper: the This Vehicle form, compiled whole", () => {
+        expect(sortKeys(compiled(DEMOLITION_STOMPER))).toEqual(
+            sortKeys({
+                name: "Demolition Stomper",
+                types: ["Artifact"],
+                subtypes: ["Vehicle"],
+                manaCost: { X: 6 },
+                oracleText: `${STOMPER_LINE}\n${CREW_5}`,
+                staticAbilities: ["crew 5"],
+                activatedAbilities: [
+                    {
+                        id: "demolition-stomper-crew",
+                        oracleText: CREW_5,
+                        cost: {
+                            tapOtherFilter: {
+                                filter: {
+                                    types: "Creature",
+                                    controllerRelation: "you",
+                                },
+                                totalPower: 5,
+                            },
+                        },
+                        useStack: true,
+                        animatesSelf: true,
+                        effects: [
+                            {
+                                op: "animate",
+                                target: { ref: "$source" },
+                                power: 10,
+                                toughness: 7,
+                                duration: { phase: "end-of-turn" },
+                            },
+                        ],
+                    },
+                ],
+                compiledStaticEffects: [
+                    {
+                        kind: "block-restriction",
+                        id: "demolition-stomper-cant-be-blocked-by",
+                        oracleText: STOMPER_LINE,
+                        neverAgainst: { power: { max: 2 } },
+                    },
+                ],
+                power: 10,
+                toughness: 7,
             })
         );
     });
