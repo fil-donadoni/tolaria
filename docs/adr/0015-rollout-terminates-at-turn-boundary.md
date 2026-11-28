@@ -129,10 +129,13 @@ phase (an upkeep cost owed, the draw after a scry or an explore, a tax on next
 turn's casts). Bounding the rollouts alone (the tree descending freely) redded
 6 but does not keep the invariant. A later boundary (the end of the bot's next
 turn, or its second next turn) redded 33–36 and was 23–63% slower than the
-base. The precombat main redded 7, each repaired before this amendment by a
-term in the evaluation (issues #10818–#10822, #10925, #10986), never by a
-change to the horizon; and it costs fewer milliseconds per iteration than the
-old horizon, since the deep pass-chain lines no longer play a further round.
+base. The precombat main redded 7, and the entries red on the root clock
+since were repaired before this amendment too: by a term in the evaluation
+(issues #10818–#10822, #10925, #10986), by the search reading a line on the
+root clock where it still did not (issues #10882, #11033), or by a blade
+board that poses the decision it names (issue #11032) — never by a change to
+the horizon. It costs fewer milliseconds per iteration than the old horizon,
+since the deep pass-chain lines no longer play a further round.
 
 `ROLLOUT_EXTRA_BOT_TURNS` (always `0`) is retired, and so is the `horizon-b`
 search variant that carried the design while its reds were repaired: a count
