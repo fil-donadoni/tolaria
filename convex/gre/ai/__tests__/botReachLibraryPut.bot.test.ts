@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../../cards";
-import { playBotReach } from "../botReach";
+import { botReachSpec, playBotReach } from "../botReach";
 import { libraryPutPose } from "../botReachLibraryPut";
 
 describe("libraryPutPose", () => {
@@ -83,6 +83,13 @@ describe("libraryPutPose", () => {
             { name: "Juggernaut", owner: "me", zone: "library", position: 1 },
         ]);
         expect(libraryPutPose(evolution, [], ["Ornithopter"])).toEqual([]);
+    });
+
+    it("the generated position hands the pose the holder's battlefield", () => {
+        const library = botReachSpec(
+            getCardByName("Eldritch Evolution")!
+        ).cards.filter((c) => c.owner === "me" && c.zone === "library");
+        expect(library.map((c) => c.name)).toEqual(["Juggernaut"]);
     });
 
     it("poses nothing for a search split into per-category filters", () => {
