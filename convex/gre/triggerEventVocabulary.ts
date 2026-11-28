@@ -419,6 +419,8 @@ export const EVENT_FIELD_KINDS: {
         priorTotal: "scalar",
         total: "scalar",
     },
+    // CR 701.61a — the player who foraged.
+    FORAGED: { playerId: "player" },
 };
 
 /** What the lowering needs from its caller to name the ids in an event: the

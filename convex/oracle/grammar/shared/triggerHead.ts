@@ -163,6 +163,9 @@ export type TriggerHeadIR =
           readonly scope: "you";
           readonly amount: number;
       }
+    /** CR 701.61a — "whenever you forage": the controller exiled three
+     *  cards from their graveyard or sacrificed a Food. */
+    | { readonly kind: "foraged"; readonly scope: "you" }
     /** CR 119.9 — "whenever you gain life": one life-gain event of the
      *  ability's controller (a gain of 0 is no event). */
     | { readonly kind: "life-gained"; readonly scope: "you" }
@@ -829,6 +832,8 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
     // CR 702.174c — a gift-paid instant or sorcery of yours, or a gift
     // trigger of a permanent you control, resolving.
     ["whenever you give a gift", { kind: "gift-given", scope: "you" }],
+    // CR 701.61a — the controller performed either half of forage.
+    ["whenever you forage", { kind: "foraged", scope: "you" }],
     // CR 119.9 — "you" is the ability's controller; an opponent's gain is
     // another head.
     ["whenever you gain life", { kind: "life-gained", scope: "you" }],
@@ -1209,6 +1214,7 @@ export function headPronounReferent(
         case "library-searched":
         case "gift-given":
         case "expend":
+        case "foraged":
         case "life-gained":
         case "life-gained-or-lost":
             return null;

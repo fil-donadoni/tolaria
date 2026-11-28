@@ -4059,6 +4059,8 @@ function lowerSentenceBody(
                 );
             if (sentence.player !== undefined)
                 return lowerOptionalSacrificeByActedOn(sentence, walk);
+            if (isForageSentence(sentence.effect))
+                return lowerOptionalForage(sentence, walk, site);
             // CR 603.2 + CR 400.7 — "you may put a <descriptor> card from
             // your hand onto the battlefield": the pick's 0..1 count IS the
             // "may" (declining picks nothing), the shape every hand-written
@@ -6644,6 +6646,10 @@ function lowerFrameChain(
             case "manifestDread":
                 ops.push({ op: "manifestDread", player: "controller" });
                 break;
+            // CR 701.61a — forage is printed only as "you may forage", read
+            // whole by `lowerOptionalForage`; a bare "Forage." is no form.
+            case "forage":
+                return unlowerable('"Forage" is read only as "you may forage"');
             // CR 725.1 — the controller takes the monarch designation.
             case "becomeMonarch":
                 ops.push({ op: "becomeMonarch" });
@@ -7110,6 +7116,47 @@ function lowerFrameChain(
             },
             then: inner.value,
         },
+    ]);
+}
+
+/** CR 701.61a — the sentence is the bare keyword action "forage". */
+function isForageSentence(effect: EffectSentenceIR): boolean {
+    return (
+        effect.kind === undefined &&
+        effect.frames.length === 1 &&
+        effect.frames[0]!.frame === "forage"
+    );
+}
+
+/**
+ * CR 701.61a + CR 118.12 + CR 603.12 — "you may forage. If you do, <effect>"
+ * / "… When you do, <effect>": the `forage` Op asks whether and how (its
+ * `optional` decline is the "may", so no cost-free `mayPay` precedes it) and
+ * binds whether the controller foraged — the evidence the gated sentence, or
+ * the reflexive ability, reads. With nothing behind it ("At the beginning of
+ * combat on your turn, you may forage.") the action is the whole effect.
+ */
+function lowerOptionalForage(
+    sentence: Extract<EffectSentenceIR, { kind: "optional" }>,
+    walk: SentenceWalk,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
+    const bind = walk.nextBind("foraged");
+    const forage: EffectOp = {
+        op: "forage",
+        player: "controller",
+        optional: true,
+        bind,
+    };
+    if (sentence.then === undefined) return lowered([forage]);
+    const gated =
+        sentence.reflexive === undefined
+            ? gatedSentence(sentence.then, walk, site)
+            : lowerReflexive(sentence.reflexive, sentence.then, walk, site);
+    if (!gated.ok) return gated;
+    return lowered([
+        forage,
+        { op: "if", predicate: { binding: bind }, then: gated.value },
     ]);
 }
 
