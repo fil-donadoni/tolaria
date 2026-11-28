@@ -538,6 +538,27 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 615.1a — "Prevent all combat damage that would be dealt this
+           * turn": the game-wide combat shield (Fog), naming no recipient
+           * and no source. Read by whole spelling; another duration, "all
+           * damage" or a narrowed set ("… by attacking creatures") stay
+           * refused.
+           */
+          readonly frame: "preventAllCombatDamage";
+      }
+    | {
+          /**
+           * CR 615.7 + CR 601.2d — "Prevent the next N damage that would be
+           * dealt this turn to any number of targets, divided as you choose":
+           * ONE announced group of any targets, the printed N split among them
+           * at announcement (each at least 1), a shield on each. `amount` is
+           * the printed digits; X and a narrowed group stay refused.
+           */
+          readonly frame: "preventNextDamageDivided";
+          readonly amount: number;
+      }
+    | {
+          /**
            * CR 601.3b + CR 611.2a — "until your next turn, you may cast
            * sorcery spells as though they had flash": the controller's
            * timing permission for one printed card type, for the Op's
@@ -1077,6 +1098,14 @@ export const VERB_FRAMES: readonly {
     {
         name: "grantOutsideGamePlays",
         opens: /^you may play a card you own from outside the game this turn$/i,
+    },
+    {
+        name: "preventAllCombatDamage",
+        opens: /^prevent all combat damage that would be dealt this turn$/i,
+    },
+    {
+        name: "preventNextDamageDivided",
+        opens: /^prevent the next \d+ damage that would be dealt this turn to any number of targets, divided as you choose$/i,
     },
     {
         name: "grantCastTiming",
@@ -2737,6 +2766,18 @@ function readMember(
         return { frames: [{ frame: "grantExtraLandDrops" }], referent };
     if (opensFrame("grantOutsideGamePlays", lower))
         return { frames: [{ frame: "grantOutsideGamePlays" }], referent };
+    if (opensFrame("preventAllCombatDamage", lower))
+        return { frames: [{ frame: "preventAllCombatDamage" }], referent };
+    if (opensFrame("preventNextDamageDivided", lower))
+        return {
+            frames: [
+                {
+                    frame: "preventNextDamageDivided",
+                    amount: Number(lower.match(/\d+/)![0]),
+                },
+            ],
+            referent,
+        };
     if (opensFrame("grantCastTiming", lower))
         return {
             frames: [{ frame: "grantCastTiming", cardType: "Sorcery" }],
