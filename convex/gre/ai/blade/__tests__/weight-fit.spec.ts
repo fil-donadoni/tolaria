@@ -17,6 +17,13 @@
 //     (sweeps — the committed defaults live in `verdicts/fit.ts`),
 //     BLADE_FIT_OUT=<path>.json (write the vector, the movement and both
 //     reports).
+//  3. The GENERATED ARM (`BLADE_FIT_GENERATED=1 bun run fit:weights`, ADR
+//     0186): the same fit with the generated columns priced beside the
+//     hand-written weights, over the fit side alone, reported against the
+//     plain fit. Writes nothing. Knobs: BLADE_FIT_GEN_LAMBDA (the pull to
+//     zero), BLADE_FIT_CARD_RESIDUAL=1 (the Card Residual pass, off by
+//     default; BLADE_FIT_RESIDUAL_LAMBDA / BLADE_FIT_RESIDUAL_CAP),
+//     BLADE_FIT_OUT=<path>.txt (write the report).
 //
 // It lives HERE, as a blade `*.spec.ts`, for the reason `verdict-report.spec.ts`
 // gives: importing the blade module pulls `convex/game.ts` and with it
@@ -32,13 +39,16 @@ import {
     fitInputPairs,
     fitWeights,
     fittableWeightsEqual,
+    formatCardResidualReport,
     formatFittedWeights,
+    formatGeneratedWeightFitReport,
     formatScoreComparison,
     formatVerdictReport,
     formatWeightFitReport,
     improvesOnIncumbent,
     pasteInstruction,
     rewriteDefaultEvalWeights,
+    runGeneratedWeightFit,
     scoreVerdictReport,
     sideReportOf,
     testPositionKeysOf,
@@ -112,7 +122,50 @@ describe("weight fit report formatting (issue #3401)", () => {
     });
 });
 
-const RUN = ENV.BLADE_FIT === "1";
+const RUN = ENV.BLADE_FIT === "1" && ENV.BLADE_FIT_GENERATED !== "1";
+const RUN_GENERATED = ENV.BLADE_FIT === "1" && ENV.BLADE_FIT_GENERATED === "1";
+
+describe.runIf(RUN_GENERATED)("weight fit, generated arm (runner)", () => {
+    it("prices the generated columns on the fit side and reports them", async () => {
+        const { verdicts, gaps } =
+            await committedVerdictCorpus(BLADE_SCENARIOS);
+        const t0 = performance.now();
+        const run = runGeneratedWeightFit(verdicts, {
+            testPositions: testPositionKeysOf(BLADE_SCENARIOS),
+            gaps,
+            fit: {
+                margin: num("BLADE_FIT_MARGIN"),
+                lambda: num("BLADE_FIT_LAMBDA"),
+                steps: num("BLADE_FIT_STEPS"),
+                trustRegion: num("BLADE_FIT_TRUST"),
+            },
+            generatedLambda: num("BLADE_FIT_GEN_LAMBDA"),
+            cardResidual:
+                ENV.BLADE_FIT_CARD_RESIDUAL === "1"
+                    ? {
+                          lambda: num("BLADE_FIT_RESIDUAL_LAMBDA"),
+                          cap: num("BLADE_FIT_RESIDUAL_CAP"),
+                      }
+                    : false,
+        });
+        const text = [
+            `corpus: fit side only — ${run.fitSide.length} of ${verdicts.length} verdicts (exam side not read), ${((performance.now() - t0) / 1000).toFixed(1)} s`,
+            formatGeneratedWeightFitReport(run),
+            ...(run.cardResidual
+                ? ["", formatCardResidualReport(run.cardResidual)]
+                : []),
+        ].join("\n");
+        console.log(`\n${text}`);
+        const outPath = ENV.BLADE_FIT_OUT;
+        if (outPath) {
+            const fs = (await import(/* @vite-ignore */ "node" + ":fs")) as {
+                writeFileSync: (p: string, d: string) => void;
+            };
+            fs.writeFileSync(outPath, `${text}\n`);
+        }
+        expect(run.pairs.length).toBeGreaterThan(0);
+    }, 3_600_000);
+});
 
 describe.runIf(RUN)("weight fit (runner)", () => {
     it("fits the committed weights to the registry's verdicts", async () => {

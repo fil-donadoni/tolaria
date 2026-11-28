@@ -485,8 +485,16 @@ only through the `generated-vector` [search variant](#search-variant), which
 hands the evaluation the committed table
 (`generatedVector/committedWeights.ts`); that table ships empty, so under the
 variant the term is computed and worth zero. The evaluation is handed no Deck
-Knowledge, so at a leaf the `need` family reads zero. Code:
-`convex/gre/ai/generatedVector/`.
+Knowledge, so at a leaf the `need` family reads zero. The Weight Fit can
+price the columns as an experiment arm (`BLADE_FIT_GENERATED=1 bun run
+fit:weights`): one more weight per column, pulled toward zero rather than
+toward a prior, fitted beside the hand-written weights on the fit side of the
+Verdicts only, and reported against the same fit without them — how many
+weights stayed zero, the largest, the pairs the columns newly satisfy or break,
+the Minimal Pairs as units. An optional pass (`BLADE_FIT_CARD_RESIDUAL=1`) fits
+a capped Card Residual per card, zone and side, and only reports it. Nothing the
+arm fits is written to a weight the Bot reads. Code:
+`convex/gre/ai/generatedVector/`, `convex/gre/ai/verdicts/generatedFit.ts`.
 
 <a id="danger-clock"></a>**Danger clock** — each player's estimated turns to
 death from the board as it stands; the evaluation rewards holding the faster

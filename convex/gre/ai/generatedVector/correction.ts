@@ -30,10 +30,11 @@ const OPP: Side = "opp";
 
 let columnSides: Uint8Array | undefined;
 
-/** The side each column counts for. Every family's LAST axis is its side
- *  axis (`columns.ts`): the two sides, or `self` alone for a family read for
- *  the seat only. */
-function sideOfColumns(): Uint8Array {
+/** The side each column counts for, by column index: 1 for `opp`, 0 for
+ *  `self`. Every family's LAST axis is its side axis (`columns.ts`): the two
+ *  sides, or `self` alone for a family read for the seat only. The Weight
+ *  Fit reads it to know which way a column's weight moves the margin. */
+export function sideOfColumns(): Uint8Array {
     if (columnSides) return columnSides;
     const layout = columnLayout();
     const out = new Uint8Array(layout.names.length);
