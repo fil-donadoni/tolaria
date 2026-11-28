@@ -64,7 +64,13 @@ export type CastParkKind = Extract<ParkKind, `cast:${string}`>;
  *  is the implementation: `planCastCostPicks` returns the single deterministic
  *  plan, never a list, which is what "K=1" means structurally. A
  *  `Record<CastParkKind, number>` is a compile-time guard: a new `cast:*` park
- *  cannot compile until it is assigned a K here. */
+ *  cannot compile until it is assigned a K here.
+ *
+ *  One exception is keyed on the CARD, not the park kind, so its bound lives
+ *  beside the function that applies it: a spell whose script reads the
+ *  cost-sacrifice snapshot (CR 608.2h) owes `cast:sacrificeSelection` one
+ *  variant per distinct victim, up to `MAX_CAST_VICTIM_VARIANTS`
+ *  (`enumerateCastCostPicks`, `gre/castCostPicks.ts`, ADR 0091 Amendment I). */
 export const PARK_VARIANT_K: Record<CastParkKind, number> = {
     "cast:sacrificeSelection": 1,
     "cast:additionalCost": 1,

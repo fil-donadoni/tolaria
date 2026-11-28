@@ -44,6 +44,7 @@ import type {
     CastCostLegs,
     CostLegs,
     EffectCardFilter,
+    EffectSacrificedValue,
     PermanentFilter,
 } from "../cards/types";
 import { matchesPermanentFilter } from "../cards/filters";
@@ -86,7 +87,12 @@ import type {
     SacrificeRequirement,
     SacrificeSelection,
 } from "./sacrificeChoice";
-import { autoResolveFungible, canAffordSacrifice } from "./sacrificeChoice";
+import {
+    autoResolveFungible,
+    canAffordSacrifice,
+    sacrificeCandidates as permanentsSacrificeCanTake,
+    sacrificeSourceSnapshot,
+} from "./sacrificeChoice";
 
 /** The payer's own permanents that satisfy a cost's permanent-leg filter (CR
  *  118.9 — "permanents you control"). Derived colours are folded in via
@@ -184,13 +190,70 @@ export function handCardMatchesFilter(
     return definitionMatchesFilter(def, filter, zone);
 }
 
+/** CR 608.2h — what a `{ sacrificed: { read } }` value would read off each
+ *  permanent a spell's sacrifice cost could take, for a caller that knows the
+ *  board but holds no resolving stack item. */
+export type SacrificeCandidateRead = {
+    manaValue: number;
+    power?: number;
+    toughness?: number;
+};
+
+/** The largest value a `{ sacrificed }` read can reach over `candidates`, or
+ *  undefined when none can be sacrificed (or none has the read
+ *  characteristic) — the cast then has no victim, and no ceiling admits a
+ *  card. */
+export function sacrificedCeiling(
+    value: EffectSacrificedValue,
+    candidates: readonly SacrificeCandidateRead[]
+): number | undefined {
+    let best: number | undefined;
+    for (let i = 0; i < candidates.length; i++) {
+        const c = candidates[i];
+        const read =
+            value.sacrificed.read === "manaValue"
+                ? c.manaValue
+                : value.sacrificed.read === "power"
+                  ? c.power
+                  : c.toughness;
+        if (read !== undefined && (best === undefined || read > best))
+            best = read;
+    }
+    return best === undefined ? undefined : best + (value.sacrificed.plus ?? 0);
+}
+
+/** The {@link SacrificeCandidateRead} of every permanent `playerId` could
+ *  sacrifice to a "sacrifice a <filter>" cost: the server's own candidate list
+ *  (`sacrificeCandidates`), read through the snapshot the cost would stamp. */
+export function sacrificeCandidateReads(
+    state: GameState,
+    playerId: string,
+    filter: PermanentFilter
+): SacrificeCandidateRead[] {
+    return permanentsSacrificeCanTake(state, playerId, filter).map((c) => {
+        const snap = sacrificeSourceSnapshot(state, c);
+        return {
+            manaValue: snap?.mv ?? 0,
+            ...(snap?.power !== undefined ? { power: snap.power } : {}),
+            ...(snap?.toughness !== undefined
+                ? { toughness: snap.toughness }
+                : {}),
+        };
+    });
+}
+
 /** {@link handCardMatchesFilter} for a definition already in hand — the door
  *  a name choice uses for a definition no registry id resolves (a meld pair's
  *  combined back face, CR 712.19, issue #7640). */
 export function definitionMatchesFilter(
     def: CardDefinition,
     filter: EffectCardFilter,
-    zone: "hand" | "graveyard" = "hand"
+    zone: "hand" | "graveyard" = "hand",
+    /** The permanents the spell's sacrifice cost could take, for a filter
+     *  whose ceiling reads the sacrificed one (CR 608.2h — Eldritch
+     *  Evolution's "mana value X or less, where X is 2 plus the sacrificed
+     *  creature's mana value"). Absent, that ceiling imposes none. */
+    sacrificeCandidates?: readonly SacrificeCandidateRead[]
 ): boolean {
     // CR 113.6c — a static ability that functions outside the battlefield
     // overrides the printed type line for a card sitting in hand (Grist, the
@@ -297,6 +360,19 @@ export function definitionMatchesFilter(
     // absent" rather than mis-comparing against a non-numeric value).
     if (typeof filter.manaValueAtMost === "number") {
         if (printedManaValue(def) > filter.manaValueAtMost) return false;
+    } else if (
+        sacrificeCandidates !== undefined &&
+        filter.manaValueAtMost !== undefined &&
+        "sacrificed" in filter.manaValueAtMost
+    ) {
+        // CR 608.2h — the ceiling is the largest the cost can make it: the
+        // caller names every permanent it could sacrifice.
+        const ceiling = sacrificedCeiling(
+            filter.manaValueAtMost,
+            sacrificeCandidates
+        );
+        if (ceiling === undefined || printedManaValue(def) > ceiling)
+            return false;
     }
     // CR 202.3 — exact mana value, on the same printed-cost sum as the ceiling
     // above. A dynamic `{ X: true }` has no resolving spell here to read X
@@ -357,7 +433,9 @@ export function definitionMatchesFilter(
     // function fell straight through to `return true`.
     if (
         filter.any !== undefined &&
-        !filter.any.some((clause) => definitionMatchesFilter(def, clause, zone))
+        !filter.any.some((clause) =>
+            definitionMatchesFilter(def, clause, zone, sacrificeCandidates)
+        )
     )
         return false;
     return true;

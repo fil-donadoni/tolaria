@@ -195,6 +195,48 @@ function amulet(tutor: string): GameState {
     });
 }
 
+/** Eldritch Evolution in hand beside three Forests and `victim`, the one
+ *  creature its "sacrifice a creature" cost can take. */
+function evolution(victim: string): GameState {
+    return makeState({
+        players: [
+            makePlayer("p1", {
+                hand: [card("Eldritch Evolution", "hand")],
+                battlefield: [
+                    card(victim, "battlefield"),
+                    card("Forest", "battlefield"),
+                    card("Forest", "battlefield"),
+                    card("Forest", "battlefield"),
+                ],
+            }),
+            makePlayer("p2"),
+        ],
+    });
+}
+
+describe("finds of a search bounded by the sacrificed permanent (issue #10965)", () => {
+    // CR 608.2h — X is 2 plus the victim's mana value, so the largest victim
+    // the board offers bounds what the search can find.
+    const list = [
+        "Eldritch Evolution",
+        "Grizzly Bears",
+        "Ornithopter",
+        "Juggernaut",
+        "Craw Wurm",
+        "Forest",
+        "Forest",
+        "Forest",
+    ].map(id);
+    it("finds up to the victim's mana value plus two, never past it", () => {
+        expect(
+            measure(evolution("Grizzly Bears"), list, "findsManaValueMax")
+        ).toBe(4);
+        expect(
+            measure(evolution("Ornithopter"), list, "findsManaValueMax")
+        ).toBe(2);
+    });
+});
+
 describe("deck-relative distance — Amulet Titan (issue #10856)", () => {
     it("a tutor whose finds include the payoff reads differently from one whose finds do not", () => {
         // Summoner's Pact finds the list's green creatures, Primeval Titan

@@ -205,6 +205,7 @@ import {
 import {
     canPayKickerAlongsideCastSacrifices,
     kickerTapLegPicks,
+    enumerateCastCostPicks,
     planCastCostPicks,
     planCollectEvidencePicks,
     withKickerEvidencePicks,
@@ -4520,9 +4521,9 @@ function enumerateCastMovesFromZone(
         // (`additionalCosts.sacrificeFilter`, flattened through the chosen
         // `oneOf` leg) plus Drought's board-wide static sacrifice (CR 118.8),
         // and the exile additional cost (Soul Exchange, CR 701.13). K=1 for
-        // every cast-side park (`gre/parkKinds.ts`): one deterministic plan,
-        // carried ON the move so the search applies exactly what the executor
-        // later submits. Computed once per announce-variant — the plan is
+        // every cast-side park (`gre/parkKinds.ts`) but a non-fungible victim:
+        // each plan is carried ON the move so the search applies exactly what
+        // the executor later submits. Computed once per announce-variant — the plan is
         // X-invariant (it reads the board and the flattened additional cost,
         // never the chosen X). `null` = a leg has no legal payment (e.g. a
         // black spell under Drought with no Swamp), which the castability gate
@@ -4538,9 +4539,12 @@ function enumerateCastMovesFromZone(
         const exilePlanDependsOnX =
             castFromZone === "graveyard" &&
             def?.additionalCosts?.flashbackExileFromGraveyard !== undefined;
-        const hoistedCostPicks =
+        // ADR 0091 Amendment I — a spell that reads its cost-sacrifice
+        // snapshot (CR 608.2h) owes one plan per distinct victim; every other
+        // cast gets the single plan back.
+        const hoistedCostPickList: (CastCostPicks | undefined)[] =
             def && !exilePlanDependsOnX
-                ? planCastCostPicks(
+                ? enumerateCastCostPicks(
                       state,
                       player,
                       card,
@@ -4553,8 +4557,8 @@ function enumerateCastMovesFromZone(
                               : {}),
                       }
                   )
-                : undefined;
-        if (hoistedCostPicks === null) continue;
+                : [undefined];
+        if (hoistedCostPickList.length === 0) continue;
         // CR 107.3a / 601.2b (issue #2141) — a paid "Kicker {X}" (Verdeloth the
         // Ancient) makes THIS variant announce an X its printed cost does not
         // carry, so the X axis is per announce-variant, not per card: the
@@ -4576,10 +4580,16 @@ function enumerateCastMovesFromZone(
                   )
                 : xValues;
         const pricedVariants = variantXValues.flatMap((x) =>
-            costPricings.map((pricing) => ({ x, pricing }))
+            costPricings.flatMap((pricing) =>
+                hoistedCostPickList.map((hoistedCostPicks) => ({
+                    x,
+                    pricing,
+                    hoistedCostPicks,
+                }))
+            )
         );
         for (let k = 0; k < pricedVariants.length; k++) {
-            const { x, pricing } = pricedVariants[k];
+            const { x, pricing, hoistedCostPicks } = pricedVariants[k];
             const normCost = normalizeManaCost(rawCost, { chosenX: x ?? 0 });
             // CR 107.3a / 601.2h (issue #4506) — this variant's caster-chosen
             // DISTINCT colours for X (Emblazoned Golem's Kicker), picked the
