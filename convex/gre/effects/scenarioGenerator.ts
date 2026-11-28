@@ -58,7 +58,7 @@ import { classLevelOf } from "../../cards/abilities/classLevels";
 import { LAND_SUBTYPE_MANA } from "../constants";
 import { hasPrepareSpell } from "../prepare";
 import { presentedDefId } from "../copy";
-import { getEffectivePT } from "../layers";
+import { STATIC_EFFECT_CTX, getEffectivePT } from "../layers";
 import { readPlayerCounters } from "../playerCounters";
 import { playerHasRestriction } from "../playerRestrictions";
 import { registerTokenDefinition } from "../../cards";
@@ -2135,20 +2135,6 @@ const SCENARIO_SKIPS = {
         code: "runtime-branch",
         reason: `construct "if" branches on a runtime predicate — covered by the construct's interpreter tests`,
     },
-    // `animate` (issue #1317) turns a permanent into a creature (CR
-    // 208.2 / 611.1) — potentially changing its BASIC eligibility as a
-    // combat/permanent object (types, P/T, granted keywords) in a way
-    // the canned generator's target-seeding (which assumes a stable
-    // permanent "kind" for the whole scenario) does not model, and the
-    // canonical caller (Earthbend N, Badgermole Cub) targets a LAND,
-    // not the generator's default creature filler. Explicit skip — the
-    // Op is new (per-Op regime, `.claude/rules/gre-development.md`)
-    // and earns its own hand-written interpreter + wire-format test
-    // instead of relying on the canned smoke sweep.
-    animate: {
-        code: "op-own-tests",
-        reason: `Op "animate" changes a permanent's basic kind (CR 205.1a/611.1) — covered by the Op's own interpreter + wire-format tests`,
-    },
     // `setBasePT` (issue #1318) sets a permanent's base P/T (CR 613.4b
     // layer 7b) for a duration. The canonical callers (Sorceress Queen,
     // Island of Wak-Wak, Singing Tree) target a creature with a
@@ -2177,7 +2163,8 @@ const SCENARIO_SKIPS = {
         reason: `Op "setColor" is new — covered by the Op's own interpreter + wire-format tests`,
     },
     // `setCardTypes` (issue #2361) REPLACES a permanent's card types
-    // (CR 205.1a layer 4). Same rationale as `animate` above: it
+    // (CR 205.1a layer 4). Same rationale as a targeted `animate` (its
+    // `analyseOp` branch): it
     // changes the target's basic "kind" mid-scenario, which the canned
     // generator's target-seeding (one stable kind per slot) does not
     // model — a permanent that stops being an artifact and starts
@@ -3054,6 +3041,68 @@ function settleRandomPicks(req: Requirements): void {
         if (raised[at] !== undefined) req.skips.splice(at, 0, ...raised[at]!);
 }
 
+/** The skip every `animate` the canned scenario does not run raises: a
+ *  targeted animation turns the slot's seeded filler into something its
+ *  one-kind-per-slot seeding never modelled, and the canonical targeted caller
+ *  (Earthbend N) names a LAND, not the filler creature. Unchanged wording, so
+ *  the forms it spells keep their hash (`smokeSkipForm`, ADR 0137). */
+const ANIMATE_OWN_TESTS_REASON = `Op "animate" changes a permanent's basic kind (CR 205.1a/611.1) — covered by the Op's own interpreter + wire-format tests`;
+
+/**
+ * `animate` on the ability's own source — "This land becomes a 2/1 red Warrior
+ * creature with first strike until end of turn. It's still a land." CR 205.1b:
+ * the permanent becomes a creature and retains its prior types; CR 613.4b: the
+ * stated P/T is its base, set in layer 7b; CR 611.2a: it lasts as stated. The scenario seeds the source with the host's own type line
+ * (`SmokeSourceSpec`), so the animation acts on exactly the kind of permanent
+ * the card puts it on, and the outcome — a creature with that base P/T, the
+ * added types, subtype, colours and keywords — reads off the board right after
+ * resolution.
+ *
+ * Every other subject keeps the op-covered skip (`ANIMATE_OWN_TESTS_REASON`),
+ * whose argument walk still names a `$source` the scenario cannot seed. Within
+ * the source form, what the run could not predict is card-dependent:
+ * - a base P/T that is not a declared literal pair: a runtime value is a
+ *   CR 608.2h snapshot, and an omitted pair leaves a land 0/0;
+ * - a base toughness below 1: the animated land dies to CR 704.5f before the
+ *   check reads it;
+ * - a granted quoted static (`grantedStaticId`): its template lives on the
+ *   host definition, which the seeded source does not carry.
+ */
+function analyseAnimate(
+    op: Extract<EffectOp, { op: "animate" }>,
+    req: Requirements
+): void {
+    if (!isSourceRef(op.target) || !subjectModelled(req, op.target)) {
+        skipBecause(req, "op-own-tests", ANIMATE_OWN_TESTS_REASON);
+        return;
+    }
+    if (typeof op.power !== "number" || typeof op.toughness !== "number") {
+        skipBecause(
+            req,
+            "runtime-amount",
+            `Op "animate" sets a base P/T on $source that is not a declared literal pair — the canned generator does not predict it`
+        );
+        return;
+    }
+    if (op.toughness < 1) {
+        skipBecause(
+            req,
+            "no-assertable-outcome",
+            `Op "animate" makes $source a creature with toughness ${op.toughness} — it dies to the state-based check before the outcome reads (CR 704.5f)`
+        );
+        return;
+    }
+    if (op.grantedStaticId !== undefined) {
+        skipBecause(
+            req,
+            "unmodelled-object-or-zone",
+            `Op "animate" grants a quoted static from the host's templates — the seeded $source carries none`
+        );
+        return;
+    }
+    recordSubject(req, op.target);
+}
+
 /** Walks a single Op, recording what the scenario must provide. Unknown Op
  *  kinds (no analyser branch) force a skip so a new Op cannot silently pass. */
 function analyseOp(op: EffectOp, req: Requirements): void {
@@ -3305,6 +3354,9 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                     `object ref "${op.target.ref}" — target depends on a forEach iteration`
                 );
             }
+            return;
+        case "animate":
+            analyseAnimate(op, req);
             return;
         case "pump":
             // `pump` (issue #840) adds a temporary P/T buff (CR 613.4c). The
@@ -5708,6 +5760,75 @@ const OP_ASSERTORS: AssertorTable = {
                 return {
                     ok: !onBf && inGy,
                     detail: `onBattlefield=${onBf} inGraveyard=${inGy}`,
+                };
+            },
+        };
+    },
+    // `animate` on the seeded `$source` (CR 205.1b / 613.4b) — the source is a
+    // creature with the stated base P/T, still every type it had, plus the
+    // added types, subtype, colours (CR 105.3, layer 5) and keywords. The
+    // animation lasts at least until end of turn, so it reads right after
+    // resolution. Every other subject and an unpredictable P/T are skipped
+    // upstream in `analyseAnimate` (returns null defensively here).
+    animate(rawOp, scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "animate" }>;
+        if (!isSourceRef(op.target)) return null;
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
+        if (typeof op.power !== "number" || typeof op.toughness !== "number")
+            return null;
+        const permBefore = pre.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === permId);
+        if (!permBefore) return null;
+        const expP = op.power;
+        const expT = op.toughness;
+        const expTypes = [
+            ...new Set([
+                ...permBefore.types,
+                "Creature",
+                ...(op.additionalTypes ?? []),
+            ]),
+        ];
+        const expSubtypes = [
+            ...permBefore.subtypes,
+            ...(op.subtype === undefined ? [] : [op.subtype]),
+        ];
+        const expKeywords = op.grantedAbilities ?? [];
+        const expColors = op.colors;
+        return {
+            label: `animate permanent ${permId} into a ${expP}/${expT} ${expTypes.join(" ")}`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "animated permanent gone" };
+                }
+                const { power: ap, toughness: at } = getEffectivePT(post, perm);
+                const missingTypes = expTypes.filter(
+                    (t) => !(perm.types as readonly string[]).includes(t)
+                );
+                const missingSubtypes = expSubtypes.filter(
+                    (t) => !perm.subtypes.includes(t)
+                );
+                const missingKeywords = expKeywords.filter(
+                    (k) => !perm.staticAbilities.includes(k)
+                );
+                const colors = STATIC_EFFECT_CTX.getColors(perm);
+                const colorsOk =
+                    expColors === undefined ||
+                    (colors.length === expColors.length &&
+                        expColors.every((c) => colors.includes(c)));
+                return {
+                    ok:
+                        ap === expP &&
+                        at === expT &&
+                        missingTypes.length === 0 &&
+                        missingSubtypes.length === 0 &&
+                        missingKeywords.length === 0 &&
+                        colorsOk,
+                    detail: `P/T ${ap}/${at}, expected ${expP}/${expT}; missing types [${missingTypes.join(",")}], subtypes [${missingSubtypes.join(",")}], keywords [${missingKeywords.join(",")}]; colours [${colors.join(",")}], expected [${expColors?.join(",") ?? "unchanged"}]`,
                 };
             },
         };
