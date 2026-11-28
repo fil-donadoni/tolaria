@@ -5620,7 +5620,7 @@ export function makeBlockDeltaLens(
 
 // --- Extra-turn structural credit (issue #244) -----------------------------
 // An extra turn's value is "washed out" of the rollout: ADR 0015 terminates
-// each rollout at the START of the bot's next turn, and the `extraTurns` queue
+// each rollout at the bot's next precombat main phase, and the `extraTurns` queue
 // (CR 500.7) is popped at that very turn crossing (phases.ts) — so the granted
 // turn is never played out, and a leaf-eval term keyed on `extraTurns` would
 // read an already-emptied queue. The value therefore never reaches the root

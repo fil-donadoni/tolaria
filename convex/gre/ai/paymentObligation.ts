@@ -24,9 +24,9 @@
 // the payer's next upkeep from the board read as the untap step leaves it.
 // Fired (the delayed trigger on the stack, CR 603.7a), it is paid from the
 // board as it stands: no untap falls between. The second is not a corner —
-// the production rollout horizon stops at the start of the Bot's next turn,
-// which is where an upkeep obligation sits on the stack, so a rollout leaf
-// read the queued obligation before the turn and nothing at it.
+// a leaf can stand in the Bot's upkeep with the obligation on the stack (a
+// rollout cut by the clock or the stall cap, a tree line stopped there), and
+// a leaf read the queued obligation before the turn and nothing at it.
 //
 // CONSERVATIVE, it under-reports rather than over-fires:
 //   * queued, only an UPKEEP obligation of the payer's own upkeep (`next-upkeep` /
@@ -318,10 +318,10 @@ function queuedObligationCost(
 
 /** The summed mana cost of the pay-or-lose obligations of `playerId` that
  *  have FIRED — delayed triggers on the stack (CR 603.7a), paid from the
- *  board as it stands, with no untap between now and the payment. The
- *  production rollout horizon stops at the start of the Bot's next turn,
- *  with the upkeep obligation exactly here. `undefined` for none, or when
- *  the payer has another item on the stack (it may add a source first). */
+ *  board as it stands, with no untap between now and the payment. A leaf
+ *  can stand in the Bot's upkeep with the obligation exactly here.
+ *  `undefined` for none, or when the payer has another item on the stack (it
+ *  may add a source first). */
 function firedObligationCost(
     state: GameState,
     playerId: string
