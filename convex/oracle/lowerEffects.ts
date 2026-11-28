@@ -377,6 +377,40 @@ function dividedCount(
     return count;
 }
 
+/**
+ * CR 702.33e — the kicked budget of a divided prevention shield's
+ * replacement ("prevent the next 6 damage this way instead"), or null when
+ * the replacement is any other effect.
+ */
+function kickedDividedBudget(sentence: EffectSentenceIR): number | null {
+    if (!("frames" in sentence) || sentence.frames.length !== 1) return null;
+    const frame = sentence.frames[0]!;
+    return frame.frame === "preventNextDamageDivided" ? frame.amount : null;
+}
+
+/**
+ * CR 115.4 + CR 601.2d — the announced group of a divided prevention shield:
+ * any number of any targets, the budget split among them (each at least 1, so
+ * the announcement caps the count at the budget).
+ */
+function dividedPreventionGroup(total: number): TargetRequirement {
+    return {
+        type: "any",
+        count: { min: 1 },
+        divideAsChosen: { total, kind: "prevent" },
+    };
+}
+
+/** CR 615.7 — the divided shield itself, expiring with the turn. */
+function dividedPreventionOp(total: number): EffectOp {
+    return {
+        op: "preventDamage",
+        mode: "next-n-divided",
+        total,
+        duration: { phase: "end-of-turn" },
+    };
+}
+
 /** CR 107.3 — an effect magnitude to an `EffectValue`, X gated by the site. */
 function lowerAmount(
     amount: AmountIR,
@@ -1250,6 +1284,32 @@ export class TargetSlots {
         this.groups[before] = { ...gated, announcedOnlyIfKicked: true };
         this.kickerGatedGroups += 1;
         this.openEnded = true;
+        return lowered(true);
+    }
+
+    /**
+     * CR 702.33g + CR 601.2d — a kicker gate that REPLACES a divided group's
+     * budget ("prevent the next 6 damage this way instead"). The division is
+     * announced with the targets, so the kicked announcement is the base
+     * requirement with the new total, swapped in at cast
+     * (`kickedTargetRequirement`); the group and its count are the same either
+     * way, so no positional slot moves. Refused unless the base is the one
+     * group, a divided one.
+     */
+    swapKickedDivideTotal(total: number): Lowered<true> {
+        const base = this.groups[0];
+        if (
+            this.kicked !== undefined ||
+            this.groups.length !== 1 ||
+            base?.divideAsChosen === undefined
+        )
+            return unlowerable(
+                "a kicked budget replaces the budget of the one divided group (CR 702.33g)"
+            );
+        this.kicked = {
+            ...base,
+            divideAsChosen: { ...base.divideAsChosen, total },
+        };
         return lowered(true);
     }
 
@@ -5504,7 +5564,16 @@ function lowerSentenceBody(
             const base = gatedSentence(sentence.base, walk, site);
             if (!base.ok) return base;
             let replacement: Lowered<EffectOp[]>;
-            if (sentence.kicked.kind === "gift") {
+            const budget = kickedDividedBudget(sentence.replacement);
+            if (budget !== null) {
+                // CR 702.33g + CR 601.2d — a kicked BUDGET: the same group,
+                // announced with the kicked total (the swap), and the shield's
+                // `total` mirroring it in the kicked branch.
+                const swapped = walk.targets.swapKickedDivideTotal(budget);
+                if (!swapped.ok) return swapped;
+                replacement = lowered([dividedPreventionOp(budget)]);
+                if (!replacement.ok) return replacement;
+            } else if (sentence.kicked.kind === "gift") {
                 // CR 702.174m — the replacement announces targets of its own,
                 // and only when the gift was promised.
                 const own = walk.replacing();
@@ -6802,6 +6871,22 @@ function lowerFrameChain(
                     count: 1,
                 });
                 break;
+            // CR 615.1a — the game-wide combat shield: turn-scoped by
+            // construction, so the Op carries no duration and names nothing.
+            case "preventAllCombatDamage":
+                ops.push({ op: "preventDamage", mode: "all-combat" });
+                break;
+            // CR 615.7 + CR 601.2d — the divided shield: the one announced
+            // group carries the budget (`divideAsChosen`, kind "prevent"),
+            // and the Op's `total` mirrors it, as the engine requires.
+            case "preventNextDamageDivided": {
+                const index = walk.targets.allocate(
+                    dividedPreventionGroup(frame.amount)
+                );
+                if (!index.ok) return index;
+                ops.push(dividedPreventionOp(frame.amount));
+                break;
+            }
             // CR 400.11b + CR 514.2 — one play of a card the controller owns
             // from outside the game, until CLEANUP.
             case "grantOutsideGamePlays":

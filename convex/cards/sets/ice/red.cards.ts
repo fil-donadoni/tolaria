@@ -928,7 +928,6 @@ export const glacialCrevasses = defineCard(() => ({
                 "Sacrifice a snow Mountain: Prevent all combat damage that would be dealt this turn.",
             cost: {
                 sacrificeFilter: {
-                    types: "Land",
                     subtypes: "Mountain",
                     supertypes: ["Snow"],
                 },

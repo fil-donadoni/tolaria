@@ -2980,6 +2980,16 @@
         "source": "compiled"
     },
     {
+        "name": "Angel of Salvation",
+        "scryfallId": "2bf69645-d1f1-4836-bdc3-76874abcfd5f",
+        "oracleId": "27b945ad-92a9-4615-87ec-790682e8c3e7",
+        "firstSet": "fut",
+        "firstPrintId": "2bf69645-d1f1-4836-bdc3-76874abcfd5f",
+        "firstPrintSet": "fut",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Angel of the God-Pharaoh",
         "scryfallId": "ad202785-a91f-4dc8-bcc0-eb1bd49f162e",
         "oracleId": "701912d5-9995-4ac7-9858-188f78b2b8a3",
@@ -3122,6 +3132,16 @@
         "firstSet": "p02",
         "firstPrintId": "e0bb39fb-29fc-4e69-9918-47277b8af0d3",
         "firstPrintSet": "p02",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Angelsong",
+        "scryfallId": "0832e87f-afef-41a5-ba36-3eaf65551576",
+        "oracleId": "fe7bad80-f853-4af9-82e2-5ccf8038d93b",
+        "firstSet": "ala",
+        "firstPrintId": "0832e87f-afef-41a5-ba36-3eaf65551576",
+        "firstPrintSet": "ala",
         "rarity": "common",
         "source": "compiled"
     },
@@ -16262,6 +16282,16 @@
         "source": "compiled"
     },
     {
+        "name": "Claws of Wirewood",
+        "scryfallId": "b94cd33f-40b6-4b11-97a4-8676ef27631e",
+        "oracleId": "4ef6ec4a-bbd2-487f-98c2-c0e78aebb550",
+        "firstSet": "scg",
+        "firstPrintId": "b94cd33f-40b6-4b11-97a4-8676ef27631e",
+        "firstPrintSet": "scg",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Claws Out",
         "scryfallId": "4396049c-b976-4b7f-8ecd-564e24ebd631",
         "oracleId": "499d76c1-97ff-4006-922c-be1684a7754c",
@@ -18515,6 +18545,16 @@
         "firstPrintId": "9347802a-0971-443c-867a-cb9400f18d5c",
         "firstPrintSet": "eld",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Corrosive Gale",
+        "scryfallId": "04a13825-ab9b-4ffd-9b59-6198181891b9",
+        "oracleId": "6143073f-4110-4a37-bc0c-89fbda2fc839",
+        "firstSet": "nph",
+        "firstPrintId": "04a13825-ab9b-4ffd-9b59-6198181891b9",
+        "firstPrintSet": "nph",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -21527,6 +21567,16 @@
         "firstPrintId": "4f3d90ef-6f70-4897-85c1-4e1beeb33363",
         "firstPrintSet": "m20",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Dawnstrider",
+        "scryfallId": "2d193a35-8950-4a77-ace3-c4d4085727f4",
+        "oracleId": "d2783a37-b6de-4184-b094-e1a23f185a94",
+        "firstSet": "mmq",
+        "firstPrintId": "2d193a35-8950-4a77-ace3-c4d4085727f4",
+        "firstPrintSet": "mmq",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -24992,6 +25042,16 @@
         "source": "compiled"
     },
     {
+        "name": "Downdraft",
+        "scryfallId": "ab4ced80-926a-4e4d-8ebd-d4fe7374a6ad",
+        "oracleId": "c2508190-5aca-4511-adc8-2072cd228119",
+        "firstSet": "wth",
+        "firstPrintId": "ab4ced80-926a-4e4d-8ebd-d4fe7374a6ad",
+        "firstPrintSet": "wth",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Downsize",
         "scryfallId": "e8408a52-d34a-4e03-9312-700dec75d844",
         "oracleId": "46537bac-b1eb-4c02-ba43-6c6b16c7729c",
@@ -28422,6 +28482,16 @@
         "firstSet": "ktk",
         "firstPrintId": "88e07226-f180-4972-b7f8-90c743d45fb8",
         "firstPrintSet": "ktk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Embolden",
+        "scryfallId": "36848fb0-4070-40cf-b24a-2e8f47c5ebc3",
+        "oracleId": "9904873c-7669-4485-b380-f28ff529b45c",
+        "firstSet": "ody",
+        "firstPrintId": "36848fb0-4070-40cf-b24a-2e8f47c5ebc3",
+        "firstPrintSet": "ody",
         "rarity": "common",
         "source": "compiled"
     },
@@ -36274,6 +36344,16 @@
         "source": "compiled"
     },
     {
+        "name": "Gale Force",
+        "scryfallId": "26c5c233-a373-4ac4-9b99-81ed97df1f9b",
+        "oracleId": "337b0807-94cb-48d0-b752-61fbd05560e4",
+        "firstSet": "chk",
+        "firstPrintId": "26c5c233-a373-4ac4-9b99-81ed97df1f9b",
+        "firstPrintSet": "chk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Gale Swooper",
         "scryfallId": "d2e3b99c-e48e-4f4d-ba7a-e9218137b432",
         "oracleId": "1758e102-22da-4cb3-98d5-76f7501d026d",
@@ -43234,6 +43314,16 @@
         "source": "compiled"
     },
     {
+        "name": "Haze of Pollen",
+        "scryfallId": "b636925d-1c32-4fdc-b814-e6111393d04e",
+        "oracleId": "f0140f00-5414-493b-962d-33312d49f6ea",
+        "firstSet": "akh",
+        "firstPrintId": "b636925d-1c32-4fdc-b814-e6111393d04e",
+        "firstPrintSet": "akh",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Hazel's Nocturne",
         "scryfallId": "239363df-4de8-4b64-80fc-a1f4b5c36027",
         "oracleId": "2a74a055-ff7f-434b-8dfb-d9fb72579cee",
@@ -45458,6 +45548,16 @@
         "source": "compiled"
     },
     {
+        "name": "Howling Gale",
+        "scryfallId": "9917cf32-0236-4463-9b1d-e8193754ff97",
+        "oracleId": "06118cec-ae63-4720-988d-df9cc15ccfab",
+        "firstSet": "ody",
+        "firstPrintId": "9917cf32-0236-4463-9b1d-e8193754ff97",
+        "firstPrintSet": "ody",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Howling Giant",
         "scryfallId": "eb8434fd-5ee5-4be9-a28d-9e04b1b94327",
         "oracleId": "c616242a-95f0-4cd8-99a1-9237cfea0e57",
@@ -45859,6 +45959,16 @@
         "firstPrintId": "70a359c9-1889-426d-acaf-074cfd9f274d",
         "firstPrintSet": "wth",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Hurly-Burly",
+        "scryfallId": "7a6e0b97-c2a9-4cd6-957e-87e9b22f7b48",
+        "oracleId": "2149f9f2-adcf-47d3-9564-326b5c0ced32",
+        "firstSet": "lrw",
+        "firstPrintId": "7a6e0b97-c2a9-4cd6-957e-87e9b22f7b48",
+        "firstPrintSet": "lrw",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -49918,6 +50028,16 @@
         "source": "compiled"
     },
     {
+        "name": "Kami of False Hope",
+        "scryfallId": "44e4f5e6-935e-429f-89b4-4571376f442e",
+        "oracleId": "49984248-4800-4f46-933a-fedd970ae910",
+        "firstSet": "bok",
+        "firstPrintId": "44e4f5e6-935e-429f-89b4-4571376f442e",
+        "firstPrintSet": "bok",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Kami of Old Stone",
         "scryfallId": "815cad73-1d46-4d2b-9dd8-edcd6abc6cbe",
         "oracleId": "575d08b2-3150-47d2-8f83-e8bb1f184c0f",
@@ -51543,6 +51663,16 @@
         "firstPrintId": "cd492072-9a8c-4d55-ac71-3c8efaa3fc87",
         "firstPrintSet": "gtc",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Knight-Captain of Eos",
+        "scryfallId": "02ef25ce-4d6a-45ff-8b6b-fd5c29307099",
+        "oracleId": "611f1714-a8bb-4ce4-a810-4d26fe64e358",
+        "firstSet": "ala",
+        "firstPrintId": "02ef25ce-4d6a-45ff-8b6b-fd5c29307099",
+        "firstPrintSet": "ala",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -53280,6 +53410,16 @@
         "firstPrintId": "afa47202-5824-4f6a-b306-465976d4d422",
         "firstPrintSet": "shm",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Leery Fogbeast",
+        "scryfallId": "56125660-2307-4270-a947-f1f4ad63841c",
+        "oracleId": "174dfb7f-fe1e-4089-80c4-1788a9307263",
+        "firstSet": "ons",
+        "firstPrintId": "56125660-2307-4270-a947-f1f4ad63841c",
+        "firstPrintSet": "ons",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -55548,6 +55688,16 @@
         "firstPrintId": "3b72c9e9-1cb2-4374-873a-53af293d86d0",
         "firstPrintSet": "msh",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Lull",
+        "scryfallId": "eec5d627-b3d7-4e11-81c7-bf4cef5409a6",
+        "oracleId": "d53f4c24-8deb-485a-b03a-945211fdf10d",
+        "firstSet": "usg",
+        "firstPrintId": "eec5d627-b3d7-4e11-81c7-bf4cef5409a6",
+        "firstPrintSet": "usg",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -60791,6 +60941,16 @@
         "source": "compiled"
     },
     {
+        "name": "Moment's Peace",
+        "scryfallId": "40ebe935-ccf9-435e-8fe8-53bcbf3526e7",
+        "oracleId": "b6d22228-a45e-4296-9ae2-1649e04b1c53",
+        "firstSet": "ody",
+        "firstPrintId": "40ebe935-ccf9-435e-8fe8-53bcbf3526e7",
+        "firstPrintSet": "ody",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Momentary Blink",
         "scryfallId": "032e072a-0630-472b-9106-5df554dff785",
         "oracleId": "a3ec6b5d-08ec-4ae0-b1db-c4b87a1849c7",
@@ -63064,6 +63224,16 @@
         "firstPrintId": "8407b02f-66b3-4cfa-a3c4-105f314fd037",
         "firstPrintSet": "ody",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Needle Storm",
+        "scryfallId": "29a44e44-94b1-4bd2-8e00-6bd2ec07ee4c",
+        "oracleId": "1f513d1e-03ca-4e0f-af48-6490d71d5c41",
+        "firstSet": "por",
+        "firstPrintId": "29a44e44-94b1-4bd2-8e00-6bd2ec07ee4c",
+        "firstPrintSet": "por",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -67397,6 +67567,16 @@
         "firstSet": "lgn",
         "firstPrintId": "7f7a0810-3970-454f-8381-700d6c6aefdc",
         "firstPrintSet": "lgn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Pause for Reflection",
+        "scryfallId": "3cfcf84c-a30c-4c4f-9f8c-ee807661e499",
+        "oracleId": "a7f266b5-7258-4eaa-b447-66460ec38505",
+        "firstSet": "grn",
+        "firstPrintId": "3cfcf84c-a30c-4c4f-9f8c-ee807661e499",
+        "firstPrintSet": "grn",
         "rarity": "common",
         "source": "compiled"
     },
@@ -74801,6 +74981,16 @@
         "firstPrintSet": "rav"
     },
     {
+        "name": "Remedy",
+        "scryfallId": "2a0b7162-4422-4dfb-a6ca-8d89fa74e6dc",
+        "oracleId": "c644f190-63e5-4496-8612-bbe7be91afc9",
+        "firstSet": "vis",
+        "firstPrintId": "2a0b7162-4422-4dfb-a6ca-8d89fa74e6dc",
+        "firstPrintSet": "vis",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Remorseful Cleric",
         "scryfallId": "9620716d-9be8-4ebd-80d2-679373f4f897",
         "oracleId": "c40bc9f6-2b72-4ae1-b912-50075af59628",
@@ -76783,6 +76973,16 @@
         "source": "compiled"
     },
     {
+        "name": "Rockcaster Platoon",
+        "scryfallId": "4ab62812-acc5-4b4b-97d3-106e399d69da",
+        "oracleId": "3bc82914-1524-4d57-8b38-9788867a4046",
+        "firstSet": "ala",
+        "firstPrintId": "4ab62812-acc5-4b4b-97d3-106e399d69da",
+        "firstPrintSet": "ala",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Rocket Launcher",
         "scryfallId": "d5bb2093-78a8-4a6c-abe7-9a5afc181ec5",
         "oracleId": "11720db4-5b6b-49ba-bf31-4d944921d6f1",
@@ -77021,6 +77221,16 @@
         "firstSet": "soi",
         "firstPrintId": "ffb04258-d6ab-440c-85d2-05a995aeba2c",
         "firstPrintSet": "soi",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Root Snare",
+        "scryfallId": "76b01fd2-139a-47ed-a8e3-021aa9c91b02",
+        "oracleId": "cbf743a5-123f-4747-826d-7f8bb929a52c",
+        "firstSet": "m19",
+        "firstPrintId": "76b01fd2-139a-47ed-a8e3-021aa9c91b02",
+        "firstPrintSet": "m19",
         "rarity": "common",
         "source": "compiled"
     },
@@ -77279,6 +77489,16 @@
         "firstSet": "mh1",
         "firstPrintId": "2cda35eb-ae42-43be-9015-3c468c7ebede",
         "firstPrintSet": "mh1",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Rough // Tumble",
+        "scryfallId": "0c93c9a0-53eb-44cc-bd79-8103774bfd4c",
+        "oracleId": "5e2bf834-7f92-4da5-beac-0dad817dc233",
+        "firstSet": "plc",
+        "firstPrintId": "0c93c9a0-53eb-44cc-bd79-8103774bfd4c",
+        "firstPrintSet": "plc",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -79969,6 +80189,16 @@
         "firstSet": "scg",
         "firstPrintId": "cf22f3e7-1626-4bab-9f62-7d4774704395",
         "firstPrintSet": "scg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Scattershot Archer",
+        "scryfallId": "d74d6cdb-a087-4b3d-bf25-509200ed6d93",
+        "oracleId": "a38ef622-d793-4867-a818-5c27982608b7",
+        "firstSet": "con",
+        "firstPrintId": "d74d6cdb-a087-4b3d-bf25-509200ed6d93",
+        "firstPrintSet": "con",
         "rarity": "common",
         "source": "compiled"
     },
@@ -84521,6 +84751,16 @@
         "source": "compiled"
     },
     {
+        "name": "Silklash Spider",
+        "scryfallId": "e41680e2-6689-4263-a5a3-9fb2e4280d52",
+        "oracleId": "2d0c73da-ed8c-44fc-abd9-7c344b1f890d",
+        "firstSet": "ons",
+        "firstPrintId": "e41680e2-6689-4263-a5a3-9fb2e4280d52",
+        "firstPrintSet": "ons",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Silkwing Scout",
         "scryfallId": "04f165aa-2986-47d1-912d-d50490a15c0b",
         "oracleId": "4c76db22-1992-448d-be4a-a9095420b8cc",
@@ -88997,6 +89237,16 @@
         "source": "compiled"
     },
     {
+        "name": "Spike Weaver",
+        "scryfallId": "9c561a2a-91c6-4d4b-9f96-bffd43a00478",
+        "oracleId": "7776b2dd-5795-458d-81da-54fed22d5ee2",
+        "firstSet": "exo",
+        "firstPrintId": "9c561a2a-91c6-4d4b-9f96-bffd43a00478",
+        "firstPrintSet": "exo",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Spike Worker",
         "scryfallId": "2713de6c-b754-435c-8d11-5215fd602a40",
         "oracleId": "d7fcf43a-191f-4f44-aade-0cf89079a0c5",
@@ -89539,6 +89789,16 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Spitting Spider",
+        "scryfallId": "f220fada-5cbb-4266-bca3-a44d51773d63",
+        "oracleId": "24ddcf3c-a4f3-4373-9483-5ce6e50d6150",
+        "firstSet": "pcy",
+        "firstPrintId": "f220fada-5cbb-4266-bca3-a44d51773d63",
+        "firstPrintSet": "pcy",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Splash Lasher",
         "scryfallId": "362ee125-35a0-46cd-a201-e6797d12d33a",
         "oracleId": "0d0c4c91-683a-4563-a0b0-39f3c04f6307",
@@ -89707,6 +89967,16 @@
         "firstSet": "fem",
         "firstPrintId": "f9681dc0-d0fc-4d5b-a23c-63ec1cc8343d",
         "firstPrintSet": "fem"
+    },
+    {
+        "name": "Spore Frog",
+        "scryfallId": "2f752339-003d-4ded-b2bf-e4200fc8d5d6",
+        "oracleId": "97db6c39-e690-49b6-93a6-e51b8dfad10b",
+        "firstSet": "pcy",
+        "firstPrintId": "2f752339-003d-4ded-b2bf-e4200fc8d5d6",
+        "firstPrintSet": "pcy",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Spore Swarm",
@@ -89955,6 +90225,16 @@
         "source": "compiled"
     },
     {
+        "name": "Squall",
+        "scryfallId": "63c1b2f6-e47f-4f18-a94a-1d08eb009ef3",
+        "oracleId": "16fe0abe-04fa-4023-8ee0-043a076e78bb",
+        "firstSet": "s99",
+        "firstPrintId": "63c1b2f6-e47f-4f18-a94a-1d08eb009ef3",
+        "firstPrintSet": "s99",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Squall Drifter",
         "scryfallId": "b3ecb728-4b54-47d0-bbef-d39e5f7d172f",
         "oracleId": "63ec5617-0da6-4534-b502-34304b1ea02b",
@@ -89962,6 +90242,26 @@
         "firstPrintId": "b3ecb728-4b54-47d0-bbef-d39e5f7d172f",
         "firstPrintSet": "csp",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Squall Line",
+        "scryfallId": "3f368729-a6f2-4bf7-8b06-39c551f0b24a",
+        "oracleId": "cdf9fab2-bfdb-4bf3-a06a-b21e07600e23",
+        "firstSet": "tsp",
+        "firstPrintId": "3f368729-a6f2-4bf7-8b06-39c551f0b24a",
+        "firstPrintSet": "tsp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Squallmonger",
+        "scryfallId": "c845e1b8-6a39-456c-aa67-d180ae63e200",
+        "oracleId": "50bf5af6-50d7-4dea-936e-508e24db0a03",
+        "firstSet": "mmq",
+        "firstPrintId": "c845e1b8-6a39-456c-aa67-d180ae63e200",
+        "firstPrintSet": "mmq",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -94444,6 +94744,16 @@
         "firstPrintId": "762501fe-5102-4c21-8ad5-430590a59830",
         "firstPrintSet": "bfz",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Take Down",
+        "scryfallId": "f8e702db-8c73-4947-9c13-5dcb50f4efab",
+        "oracleId": "0925e112-c089-4aa4-9878-6d6fb0a263c8",
+        "firstSet": "kld",
+        "firstPrintId": "f8e702db-8c73-4947-9c13-5dcb50f4efab",
+        "firstPrintSet": "kld",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -108992,6 +109302,16 @@
         "firstPrintId": "e105e6c0-2d75-4ebe-beca-e7b4101f87f6",
         "firstPrintSet": "phpr",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Windstorm",
+        "scryfallId": "ee3768ec-bb3b-44dc-9fa3-7cb3d3ee9f8c",
+        "oracleId": "9969b822-2ead-4956-bac2-875ffd90e872",
+        "firstSet": "m10",
+        "firstPrintId": "ee3768ec-bb3b-44dc-9fa3-7cb3d3ee9f8c",
+        "firstPrintSet": "m10",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

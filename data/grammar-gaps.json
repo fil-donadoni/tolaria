@@ -1131,6 +1131,11 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › Prevent all combat damage that would be dealt this turn",
+            "issue": 4590
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › Prevent all combat damage that would be dealt to and dealt by this creature this turn",
             "issue": 4590
         },
@@ -1318,6 +1323,16 @@
             "kind": "grammar",
             "key": "activated › effect clause › each creature and each player",
             "issue": 4306
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › each creature with flying",
+            "issue": 4590
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › each creature with flying and each player",
+            "issue": 4590
         },
         {
             "kind": "grammar",
@@ -2371,6 +2386,11 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › each creature with flying",
+            "issue": 4590
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › each creature with flying and each player",
             "issue": 4590
         },
@@ -2378,6 +2398,11 @@
             "kind": "grammar",
             "key": "spell › effect clause › each creature without flying and each player",
             "issue": 4557
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › each creature without flying and each player instead",
+            "issue": 4590
         },
         {
             "kind": "grammar",
@@ -3513,6 +3538,16 @@
             "kind": "grammar",
             "key": "triggered › effect clause › Play that card this turn",
             "issue": 8496
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Prevent all combat damage that would be dealt this turn",
+            "issue": 4590
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Prevent the next N damage that would be dealt this turn to any number of targets, divided as you choose",
+            "issue": 4590
         },
         {
             "kind": "grammar",
