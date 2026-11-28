@@ -3411,6 +3411,42 @@ function bottomLookedAtCards(
     }
 }
 
+/** `lookDistribute`'s keep router (issue #2070): the kept cards go to their
+ *  keep zone. A picked id that has since left the library is a no-op in every
+ *  primitive (CR 101.3).
+ *    - `"hand"` — `moveCardById` library → hand.
+ *    - `"battlefield"` (Aang, at the Crossroads) — a CR 400.7 zone change
+ *      through `putFromLibraryOntoBattlefield`: the card is PUT, never cast
+ *      (CR 601.2), it enters summoning sick (CR 302.6) and its own ETB
+ *      triggers fire (CR 603.6a). `tapped` is the authored "onto the
+ *      battlefield tapped" entry (CR 110.5b).
+ *    - `"library-top"` (Thassa's Oracle) — `putLibraryCardsOnTop`; `picks[0]`
+ *      ends up the very top when more than one is kept. */
+function placeLookDistributeKeep(
+    ctx: SpellContext,
+    playerId: string,
+    keepTo: OpOf<"lookDistribute">["keepTo"],
+    picks: readonly string[],
+    tapped: boolean
+): void {
+    if (keepTo === "library-top") {
+        ctx.putLibraryCardsOnTop(playerId, [...picks]);
+        return;
+    }
+    for (let i = 0; i < picks.length; i++) {
+        const id = picks[i];
+        if (keepTo === "hand") {
+            ctx.moveCardById(playerId, id, "library", "hand");
+        } else {
+            ctx.putFromLibraryOntoBattlefield(
+                playerId,
+                id,
+                tapped ? { authoredEntry: { entersTapped: true } } : undefined
+            );
+        }
+    }
+}
+
 /** Default prompt for a `lookDistribute` choice (issue #2070) — varies on
  *  every independent axis (`keepTo` for the kept pile, `destination` for the
  *  un-kept pile, `randomBottom` for who orders it) so the wording never claims
@@ -6077,7 +6113,7 @@ export const OP_EXECUTORS: {
         // `destination`. Auto-resolve over a zero-branch pick rather than
         // prompt an empty picker (the Arena UX default for choice-less
         // resolutions). No `bind` either — nothing was kept (CR 608.2b).
-        if (keep === 0) {
+        if (keep === 0 && op.otherwise === undefined) {
             // "Reveal the top N" (op.reveal === "window", CR 701.20a) still
             // reveals the whole window to every player even when nothing is
             // kept (bng-style "you may put a land ... — none found"): the
@@ -6105,43 +6141,53 @@ export const OP_EXECUTORS: {
             );
             return;
         }
-        const picks = ctx.requestChoice({
-            playerId: chooserId,
-            // A fixed choiceId is unique per Op position: the pipeline keys on
-            // `step:choiceId` and `step` IS this Op's checkpointed position, so
-            // two lookDistribute Ops at different positions never collide.
-            choiceId: "dig-to-hand",
-            kind: "look-distribute",
-            zone: "library",
-            // The chooser picks from `playerId`'s library (Karn's "an opponent
-            // chooses one of them") — `zoneOwnerId` names the library owner when
-            // it differs from the chooser, the same seam `scryReorder`'s
-            // fateseal uses. The peek is exposed to the chooser; the kept/un-kept
-            // moves still run against `playerId`'s library.
-            ...(chooserId !== playerId ? { zoneOwnerId: playerId } : {}),
-            // The FULL looked-at window is shown (candidateIds); `eligibleIds`
-            // (when a filter is present) restricts which of those may be
-            // kept — the filtered-out cards can only go to `destination`.
-            candidateIds: topIds,
-            eligibleIds: eligible,
-            // `optional` ("you may") allows keeping 0; otherwise EXACTLY `keep`.
-            // The picker partitions the rest to the second zone (submit
-            // validates the partition) unless `randomBottom` discards the order.
-            count: { min: optional ? 0 : keep, max: keep },
-            destination,
-            // `keepTo` (issue #2070) — where the keep-pile itself lands;
-            // carried on the PendingChoice so the frontend picker labels the
-            // pile correctly ("Hand" vs "Top of library") without guessing
-            // from `destination` (the UN-kept cards' target, orthogonal).
-            keepTo: op.keepTo,
-            // Narset's random bottom: nothing for the picker to order — the
-            // client mounts the simple grid pick instead of the drag picker.
-            randomizeRest: randomBottom ? true : undefined,
-            prompt:
-                op.prompt ??
-                keepPromptFor(op.keepTo, destination, randomBottom),
-        });
-        if (picks === undefined) return "suspend"; // enqueued — wait
+        // With an `otherwise` fallback a keep-nothing first pick (no eligible
+        // card, here) skips straight to the fallback choice below instead of
+        // prompting an empty picker.
+        const firstPicks =
+            keep === 0
+                ? []
+                : ctx.requestChoice({
+                      playerId: chooserId,
+                      // A fixed choiceId is unique per Op position: the
+                      // pipeline keys on `step:choiceId` and `step` IS this
+                      // Op's checkpointed position, so two lookDistribute Ops
+                      // at different positions never collide.
+                      choiceId: "dig-to-hand",
+                      kind: "look-distribute",
+                      zone: "library",
+                      // The chooser picks from `playerId`'s library (Karn's
+                      // "an opponent chooses one of them") — `zoneOwnerId`
+                      // names the library owner when it differs from the
+                      // chooser, the same seam `scryReorder`'s fateseal uses.
+                      ...(chooserId !== playerId
+                          ? { zoneOwnerId: playerId }
+                          : {}),
+                      // The FULL looked-at window is shown (candidateIds);
+                      // `eligibleIds` (when a filter is present) restricts
+                      // which of those may be kept — the filtered-out cards
+                      // can only go to `destination`.
+                      candidateIds: topIds,
+                      eligibleIds: eligible,
+                      // `optional` ("you may") allows keeping 0; otherwise
+                      // EXACTLY `keep`. The picker partitions the rest to the
+                      // second zone (submit validates the partition) unless
+                      // `randomBottom` discards the order.
+                      count: { min: optional ? 0 : keep, max: keep },
+                      destination,
+                      // `keepTo` (issue #2070) — where the keep-pile itself
+                      // lands, so the frontend picker labels the pile
+                      // ("Hand" vs "Top of library") without guessing from
+                      // `destination` (the UN-kept cards' target).
+                      keepTo: op.keepTo,
+                      // Narset's random bottom: nothing for the picker to
+                      // order — the client mounts the simple grid pick.
+                      randomizeRest: randomBottom ? true : undefined,
+                      prompt:
+                          op.prompt ??
+                          keepPromptFor(op.keepTo, destination, randomBottom),
+                  });
+        if (firstPicks === undefined) return "suspend"; // enqueued — wait
         // Public reveal (CR 701.20a), fired ONCE here on the resumed pass (the
         // pre-`requestChoice` code re-runs on resume, so anything above would
         // double-pop the dialog). Two scopes:
@@ -6155,43 +6201,62 @@ export const OP_EXECUTORS: {
         // view); the un-kept cards keep their destination's own visibility
         // (public graveyard, or hidden random bottom), so a revealed card put
         // back on a random bottom is NOT leaked by a stale knownTo stamp.
-        if (op.reveal !== undefined && picks.length > 0) {
-            ctx.markKnownToAll(playerId, picks);
+        // (`reveal` never rides with `otherwise` — validator-enforced.)
+        if (op.reveal !== undefined && firstPicks.length > 0) {
+            ctx.markKnownToAll(playerId, firstPicks);
         }
         if (op.reveal !== undefined) {
             ctx.notifyReveal(
                 ctx.allPlayerIds.slice(),
-                op.reveal === "window" ? topIds : picks,
+                op.reveal === "window" ? topIds : firstPicks,
                 ctx.sourceCardId,
                 "reveal"
             );
         }
-        // Resume — the kept cards go to `keepTo` (issue #2070). A picked id
-        // that has since left the library is a no-op in `moveCardById` /
-        // `putLibraryCardsOnTop` alike (CR 608.2b).
-        if (op.keepTo === "hand") {
-            for (let i = 0; i < picks.length; i++) {
-                const id = picks[i];
-                ctx.moveCardById(playerId, id, "library", "hand");
-            }
-        } else if (op.keepTo === "battlefield") {
-            // "battlefield" (issue #3249, Aang, at the Crossroads: "You may put
-            // a creature card ... from among them onto the battlefield") — CR
-            // 400.7 zone change through the shared library → battlefield
-            // entry primitive: the card is PUT, never cast (CR 601.2), so no
-            // cast trigger fires, it enters summoning sick (CR 302.6) and its
-            // own ETB triggers fire (CR 603.6a). Routed before the rest are
-            // bottomed, the order the Oracle text states.
-            for (let i = 0; i < picks.length; i++) {
-                const id = picks[i];
-                ctx.putFromLibraryOntoBattlefield(playerId, id);
-            }
-        } else {
-            // "library-top" (Thassa's Oracle) — `picks[0]` (the first kept
-            // id) ends up the very top when more than one is kept, mirroring
-            // `putLibraryCardsOnTop`'s own ordering contract.
-            ctx.putLibraryCardsOnTop(playerId, picks);
+        let picks = firstPicks;
+        let keptTo = op.keepTo;
+        let orderChoiceId = "dig-to-hand";
+        // CR 608.2c — "If you don't, put a card from among them into your
+        // hand": the first keep took nothing, so a second choice over the SAME
+        // window (nothing has left the library yet) puts EXACTLY `take` of any
+        // looked-at cards to `otherwise.keepTo`. Its answer is stored under its
+        // own choiceId, so the resumed pass re-reads the first (empty) answer
+        // and lands here again.
+        if (firstPicks.length === 0 && op.otherwise !== undefined) {
+            const fallbackKeep = Math.min(take, topIds.length);
+            const fallbackPicks = ctx.requestChoice({
+                playerId: chooserId,
+                choiceId: "dig-otherwise",
+                kind: "look-distribute",
+                zone: "library",
+                ...(chooserId !== playerId ? { zoneOwnerId: playerId } : {}),
+                candidateIds: topIds,
+                count: { min: fallbackKeep, max: fallbackKeep },
+                destination,
+                keepTo: op.otherwise.keepTo,
+                randomizeRest: randomBottom ? true : undefined,
+                prompt:
+                    op.otherwise.prompt ??
+                    keepPromptFor(
+                        op.otherwise.keepTo,
+                        destination,
+                        randomBottom
+                    ),
+            });
+            if (fallbackPicks === undefined) return "suspend";
+            picks = fallbackPicks;
+            keptTo = op.otherwise.keepTo;
+            orderChoiceId = "dig-otherwise";
         }
+        // The kept cards go to their keep zone (issue #2070); `tapped` (CR
+        // 110.5b) is the first keep's battlefield entry only.
+        placeLookDistributeKeep(
+            ctx,
+            playerId,
+            keptTo,
+            picks,
+            picks === firstPicks && op.tapped === true
+        );
         // `bind` (issue #1101) — snapshot the FIRST kept card so a later Op
         // (e.g. `gainLife`'s `manaValue: { of: { ref: op.bind } }`, Reviving
         // Vapors) can read it back through the ordinary object-ref path.
@@ -6215,7 +6280,7 @@ export const OP_EXECUTORS: {
         // filtered-out ones) go to `destination`.
         const chosenBottom = randomBottom
             ? []
-            : ctx.readOrderedSecond("dig-to-hand");
+            : ctx.readOrderedSecond(orderChoiceId);
         bottomLookedAtCards(
             ctx,
             playerId,
