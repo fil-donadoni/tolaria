@@ -100,9 +100,32 @@ export type TriggerHeadIR =
            *  permanent by the land card type. Lowers to
            *  `PermanentFilter.types`. */
           readonly permanentType?: "Land";
+          /** "THIS CREATURE OR another … you control enters": the source
+           *  is one of the entering permanents the head names, under scope
+           *  `yours` (see `matchSelfOrAnotherHead`). */
+          readonly orSelf?: true;
       }
     /** CR 603.6 — "when [this / a creature] dies". */
     | { readonly kind: "dies"; readonly scope: TriggerSubjectScope }
+    /**
+     * CR 603.6c + CR 700.4 — "whenever this creature or another creature you
+     * control leaves the battlefield without dying": a creature of yours
+     * moving from the battlefield to any zone but a graveyard ("dies" is
+     * exactly the graveyard move). The source's own departure is one of them
+     * (see `matchSelfOrAnotherHead`).
+     */
+    | {
+          readonly kind: "leaves-without-dying";
+          readonly scope: "yours";
+          readonly orSelf: true;
+      }
+    /**
+     * CR 603.2 + CR 603.6a + CR 701.21a — "when this artifact enters and when
+     * you sacrifice it": ONE Oracle line over the source's own entry and its
+     * own sacrifice (a departure to the graveyard by its controller as a
+     * sacrifice, never a destroy). Self only.
+     */
+    | { readonly kind: "enters-or-sacrificed" }
     /**
      * CR 603.6c — "when this <permanent> leaves the battlefield": the source
      * moving from the battlefield to ANY zone, whatever the body does
@@ -898,6 +921,14 @@ export const SELF_HEADS: readonly {
         tail: " enters and at the beginning of your upkeep",
         ir: { kind: "enters-or-upkeep" },
     },
+    // CR 603.2 + CR 603.6a + CR 701.21a — the source's own entry AND its own
+    // sacrifice, one line. "When you sacrifice it" names the source, which
+    // only its controller can sacrifice.
+    {
+        opener: "when ",
+        tail: " enters and when you sacrifice it",
+        ir: { kind: "enters-or-sacrificed" },
+    },
     // CR 509.3a — the source's own declaration as a blocker. "blocks a
     // creature", "blocks or becomes blocked" and the "whenever" opener are
     // other heads, refused until a rule reads them.
@@ -1121,6 +1152,8 @@ export function headPronounReferent(
         // An enters-or-leaves firing may be either, so "it" stays unread too.
         case "leaves":
         case "enters-or-leaves":
+        case "enters-or-sacrificed":
+        case "leaves-without-dying":
             return null;
         // CR 400.7 — the source went to a graveyard and is the object "it"
         // names there; the engine recovers `$source` from that graveyard
@@ -1290,6 +1323,64 @@ function matchSubtypeHead(span: string): TriggerHeadIR | null {
 }
 
 /**
+ * "whenever <self> or another <noun> you control <event>": the subject is a
+ * disjunction of the source (CR 201.5) and every OTHER permanent of yours the
+ * noun names (CR 109.2). Only the frame is a pattern; the noun and the event
+ * are read from the combinations the corpus prints, each with its fixture:
+ *
+ *  - CR 603.6a — "or another creature you control enters";
+ *  - CR 603.6a + 205.3m — "or another <one creature type> you control enters";
+ *  - CR 603.6c + 700.4 — "or another creature you control leaves the
+ *    battlefield without dying".
+ *
+ * Every reading is scope `yours`: the source is one of the permanents of yours
+ * the noun names, so "this or another X of yours" is "an X of yours". That
+ * collapse holds only when the source IS an X, which the lowering checks
+ * against the card's printed type line (`lower.ts`, fail-closed): a card whose
+ * printed subtypes lack the type the head names is refused, never read as if
+ * it had it. CR 201.5 — the source is the X it is printed as unless an effect
+ * changes it; a source stripped of the type before the event does not fire
+ * its own half here, the reading every hand-written "this or another" head
+ * already makes (scope `yours` + the noun's filter).
+ *
+ * Refused neighbours: "… with flying" (a keyword narrowing — no zone-change
+ * event carries the moving permanent's abilities, so `requireAbility` there
+ * would never match), "… with toughness greater than its power" (no filter
+ * field), "another artifact", a plural or a type list, and "dies" (no
+ * fixture here), each under its own gap key.
+ */
+const SELF_OR_ANOTHER_YOURS =
+    /^whenever (.+?) or another (.+?) you control (enters|leaves the battlefield without dying)$/i;
+
+export function matchSelfOrAnotherHead(span: string): TriggerHeadIR | null {
+    const m = SELF_OR_ANOTHER_YOURS.exec(span);
+    if (m === null || !isSelfPhrase(m[1]!)) return null;
+    const noun = m[2]!;
+    const event = m[3]!.toLowerCase();
+    if (event === "enters") {
+        if (noun.toLowerCase() === "creature")
+            return {
+                kind: "enters",
+                scope: "yours",
+                creaturesOnly: true,
+                orSelf: true,
+            };
+        return CREATURE_SUBTYPES.has(noun)
+            ? {
+                  kind: "enters",
+                  scope: "yours",
+                  creaturesOnly: false,
+                  subtypes: [noun],
+                  orSelf: true,
+              }
+            : null;
+    }
+    return noun.toLowerCase() === "creature"
+        ? { kind: "leaves-without-dying", scope: "yours", orSelf: true }
+        : null;
+}
+
+/**
  * The head of a triggered ability, consumed whole.
  *
  * The self branch is tried first and returns immediately, but that is NOT a
@@ -1318,6 +1409,9 @@ export const triggerHeadRule: Rule<TriggerHeadIR> = subGrammar(
                 creaturesOnly: true,
                 manaValueAtLeast: Number(floor[1]),
             });
+        // CR 201.5 + CR 109.2 — "<self> or another <noun> you control …".
+        const selfOrAnother = matchSelfOrAnotherHead(span);
+        if (selfOrAnother !== null) return ok(selfOrAnother);
         // CR 205.3 — a head narrowed by subtype words.
         const subtyped = matchSubtypeHead(span);
         if (subtyped !== null) return ok(subtyped);

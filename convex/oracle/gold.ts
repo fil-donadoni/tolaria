@@ -867,6 +867,8 @@ const TRIGGER_HEAD_EVENT: Record<CompiledTriggerHead["kind"], GameEventType> = {
     left: "PERMANENT_LEFT",
     // CR 603.2 — two events; the pairing key names the first member.
     "enters-or-leaves": "PERMANENT_ENTERED",
+    // CR 603.2 — two events; the pairing key names the first member.
+    "enters-or-sacrificed": "PERMANENT_ENTERED",
     sacrificed: "PERMANENT_LEFT",
     "library-searched": "LIBRARY_SEARCHED",
     "gift-given": "GIFT_GIVEN",
