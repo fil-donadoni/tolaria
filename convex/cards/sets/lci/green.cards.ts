@@ -127,3 +127,59 @@ export const spelunking = defineCard(() => ({
         },
     ],
 }));
+
+// Ghalta, Stampede Tyrant — {5}{G}{G}{G} Legendary Creature — Elder Dinosaur
+// 12/12 (LCI). "Trample\nWhen Ghalta enters, put any number of creature cards
+// from your hand onto the battlefield."
+//
+// The ETB (CR 603.6a) is Dragon Arch's hand → battlefield shape
+// (`apc/colorless.cards.ts`) with the count opened to "any number":
+// `choose-hand-card` over creature cards, `{ min: 0, max: 999 }` (the
+// any-number convention of Surgical Extraction), then one `moveZone` of the
+// whole picked set — every card enters at once, in one event. The creatures
+// are put onto the battlefield, never cast — casting puts a spell on the
+// stack and pays its costs (CR 601.2), so no cast trigger
+// fires and no cost is paid.
+//
+// hand-tail: When {self} enters, put any number of creature cards from your hand onto the battlefield. (#10538)
+export const ghaltaStampedeTyrant = defineCard(() => ({
+    id: "72e805e9-69be-45c1-aa04-f460641a0c1e", // LCI 185
+    name: "Ghalta, Stampede Tyrant",
+    rarity: "mythic",
+    oracleText:
+        "Trample\nWhen Ghalta enters, put any number of creature cards from your hand onto the battlefield.",
+    manaCost: { X: 5, G: 3 },
+    supertypes: ["Legendary"],
+    types: ["Creature"],
+    subtypes: ["Elder", "Dinosaur"],
+    power: 12,
+    toughness: 12,
+    staticAbilities: ["trample"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "ghalta-stampede-tyrant-enters",
+            oracleText:
+                "When Ghalta enters, put any number of creature cards from your hand onto the battlefield.",
+            scope: "self",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    filter: { type: "Creature" },
+                    count: { min: 0, max: 999 },
+                    prompt: "Put any number of creature cards from your hand onto the battlefield.",
+                    bind: "$creatures",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$creatures" },
+                    player: "controller",
+                    from: "hand",
+                    to: "battlefield",
+                },
+            ],
+        }),
+    ],
+}));
