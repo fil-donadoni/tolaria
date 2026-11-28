@@ -254,3 +254,10 @@ describe("opponents play with their hands revealed (CR 701.18c, CR 402.3)", () =
             );
     });
 });
+
+describe("random hand reveal by the trigger's damaged player (CR 701.20a)", () => {
+    it("Merfolk Spy — the revealing player is the event's damaged player", () => {
+        const row = fixture("Merfolk Spy");
+        expect(sortKeys(compiled(row.card))).toEqual(sortKeys(row.expected));
+    });
+});

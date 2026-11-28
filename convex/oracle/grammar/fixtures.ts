@@ -20310,4 +20310,49 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.20a — "that player reveals a card at random from their hand" on
+    // a combat-damage trigger: the revealing player is the damaged player the
+    // event names, a runtime binding the canned smoke scenario cannot stage.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "d004b481-a1d5-459d-8282-76baa9d13652",
+            name: "Merfolk Spy",
+            manaCost: "{U}",
+            typeLine: "Creature — Merfolk Rogue",
+            oracleText:
+                "Islandwalk (This creature can't be blocked as long as defending player controls an Island.)\nWhenever this creature deals combat damage to a player, that player reveals a card at random from their hand.",
+            layout: "normal",
+            power: "1",
+            toughness: "1",
+        },
+        expected: {
+            name: "Merfolk Spy",
+            types: ["Creature"],
+            subtypes: ["Merfolk", "Rogue"],
+            manaCost: { U: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "Islandwalk (This creature can't be blocked as long as defending player controls an Island.)\nWhenever this creature deals combat damage to a player, that player reveals a card at random from their hand.",
+            staticAbilities: ["islandwalk"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "merfolk-spy-trigger",
+                    oracleText:
+                        "Whenever this creature deals combat damage to a player, that player reveals a card at random from their hand.",
+                    head: { kind: "combat-damage-to-player" },
+                    effects: [
+                        {
+                            op: "reveal",
+                            player: { ref: "$event.damagedPlayer" },
+                            zone: "hand",
+                            random: true,
+                            bind: "$revealed",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
