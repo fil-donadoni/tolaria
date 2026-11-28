@@ -18206,19 +18206,18 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // the Trinisphere first leaves three mana for all three Lions this
         // turn; a Lion first, or the Weaponry, leaves room for one more taxed
         // spell. The closest rival, two taxed Lions with the Disenchant held,
-        // ends a Lion behind this turn and the next. With filler basics in the library the land drop let "Lion
-        // now, Disenchant + Lion next turn" tie the removal line (issue
-        // #10820), so the library is explicit and land-free; the opponent's
-        // holds basics only so neither seat decks out inside the search.
+        // ends a Lion behind this turn and the next. With filler basics in
+        // the library a land drop let "Lion now, Disenchant + Lion next turn"
+        // tie the removal line, so the library is explicit and land-free; the
+        // opponent's holds basics only so neither seat decks out inside the
+        // search.
         //
-        // Issue #11032: on three Plains the payoff (three Lions) fell on the
-        // Bot's NEXT turn, one step past the root-clock horizon (`horizon-b`,
-        // PRD issue #10815), where the leaf priced those castable Lions at the
-        // latent discount and the Bot cast a Lion on every seed. Pricing a
-        // castable-now creature at its whole body at that stop fixed the entry
-        // and turned ten other `must` entries red (pass over cast: the hand
-        // read as already deployed), so the board was moved inside the turn
-        // and the three-mana horizon effect is tracked by issue #11049.
+        // The payoff lands inside the turn on purpose. On three Plains it fell
+        // on the Bot's next turn, one step past the root-clock rollout
+        // horizon, whose leaf prices castable Lions at the latent discount:
+        // the Bot cast a Lion on every seed. Pricing a castable-now creature
+        // at its whole body at that stop turned ten other `must` entries red
+        // (pass over cast), so that horizon effect is tracked by issue #11049.
         label: "cost-modifier pricing: Disenchant takes the Trinisphere taxing the bot's hand of one-drops, not the 2-MV artifact (issue #5363)",
         classification: {
             kind: "conditional",
