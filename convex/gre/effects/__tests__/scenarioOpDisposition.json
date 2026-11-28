@@ -7,10 +7,7 @@
     "addPlayerCounter": "runs",
     "addSubtype": "runs",
     "airbend": "runs",
-    "animate": {
-        "code": "op-own-tests",
-        "reason": "Op \"animate\" changes a permanent's basic kind (CR 205.1a/611.1) — covered by the Op's own interpreter + wire-format tests"
-    },
+    "animate": "runs",
     "armGraveyardRedirect": "runs",
     "attach": {
         "code": "unmodelled-object-or-zone",

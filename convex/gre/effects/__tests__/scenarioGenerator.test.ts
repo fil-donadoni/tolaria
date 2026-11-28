@@ -661,6 +661,73 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
         expect(plan.skips.map((s) => s.code)).toEqual(codes);
     });
 
+    // CR 205.1b / 613.4b — "{1}: This land becomes a 1/1 Blinkmoth artifact
+    // creature with flying until end of turn. It's still a land." The source
+    // is seeded as the host's own land, so the animation is proven against
+    // the kind of permanent the card really animates.
+    const animateSelf = {
+        op: "animate",
+        target: { ref: "$source" },
+        power: 2,
+        toughness: 1,
+        subtype: "Warrior",
+        additionalTypes: ["Artifact"],
+        colors: ["R"],
+        grantedAbilities: ["first strike"],
+        duration: { phase: "end-of-turn" },
+    } as const satisfies EffectOp;
+    const MANLAND_HOST = abilityHost({ types: ["Land"] }, true);
+
+    it("an animate on a land $source executes through resolution and its declared outcome holds", () => {
+        const plan = planSmokeTest([animateSelf], MANLAND_HOST);
+        if (plan.kind !== "run") throw new Error(plan.reason);
+        expect(plan.assertions.length).toBe(1);
+        const source = plan.scenario.state.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === SOURCE_PERMANENT_ID);
+        expect(source?.types).toEqual(["Land"]);
+        expect(failedAssertions(plan)).not.toEqual([]);
+        resolveOnSeededSource(plan, [animateSelf], "gen-5336-animate");
+        expect(failedAssertions(plan)).toEqual([]);
+    });
+
+    it.each<[string, EffectOp, ReturnType<typeof abilityHost>, string[]]>([
+        [
+            "an announced slot",
+            { ...animateSelf, target: { target: 0 } },
+            MANLAND_HOST,
+            ["op-own-tests"],
+        ],
+        [
+            "a spell-site $source",
+            animateSelf,
+            SPELL_HOST,
+            ["op-own-tests", "source-or-each-subject"],
+        ],
+        [
+            "no declared base P/T (CR 301.7b)",
+            { ...animateSelf, power: undefined, toughness: undefined },
+            MANLAND_HOST,
+            ["runtime-amount"],
+        ],
+        [
+            "a 0-toughness base (CR 704.5f)",
+            { ...animateSelf, power: 0, toughness: 0 },
+            MANLAND_HOST,
+            ["no-assertable-outcome"],
+        ],
+        [
+            "a granted quoted static",
+            { ...animateSelf, grantedStaticId: "host-template" },
+            MANLAND_HOST,
+            ["unmodelled-object-or-zone"],
+        ],
+    ])("an animate with %s keeps a skip", (_name, op, host, codes) => {
+        const plan = planSmokeTest([op], host);
+        if (plan.kind !== "skip") throw new Error("expected a skip");
+        expect(plan.skips.map((s) => s.code)).toEqual(codes);
+    });
+
     it("seeds the source TAPPED when the script untaps it, so the untap is observable", () => {
         const plan = planSmokeTest(
             [{ op: "tapUntap", action: "untap", target: { ref: "$source" } }],
