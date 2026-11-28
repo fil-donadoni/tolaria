@@ -398,6 +398,29 @@ function candidateResolver(
         const key = planlessKey(move);
         if (!byPlanlessKey.has(key)) byPlanlessKey.set(key, move);
     }
+    // Issue #10855 — an accepted cost's graveyard leg is not a choice the
+    // candidate set offers: `choiceCandidates.ts` ranks the graveyard by
+    // `prospectiveCardWorth` and emits ONE set, so a verdict judged "pay or
+    // not", never which cards. That ranking reads the fitted weights, so a
+    // refit can pick another set and the recorded key then names cards the
+    // rebuilt position no longer offers as a whole. Re-read such a key by its
+    // other legs and the leg's SIZE, and only where exactly one enumerated
+    // move answers — an ambiguous match (`null`) stays stale.
+    const graveyardlessKey = (
+        move: Extract<Move, { kind: "may-pay" }>
+    ): string => {
+        const { graveyardIds, ...rest } = move;
+        return `${collapseKeyOf(rest)}#graveyard=${graveyardIds?.length ?? -1}`;
+    };
+    const byGraveyardlessKey = new Map<string, Move | null>();
+    for (let i = 0; i < enumerated.length; i++) {
+        const move = enumerated[i];
+        if (move.kind !== "may-pay" || !move.accept || !move.graveyardIds) {
+            continue;
+        }
+        const key = graveyardlessKey(move);
+        byGraveyardlessKey.set(key, byGraveyardlessKey.has(key) ? null : move);
+    }
     const resolveCandidate = (key: string): Move | undefined => {
         const exact = byKey.get(key);
         if (exact) return exact;
@@ -436,7 +459,13 @@ function candidateResolver(
         // matched this way — `makeInterchangeableKeyer` maps an unresolvable
         // id to itself, so a genuinely stale key stays stale.
         const collapsed = byCollapseKey.get(collapseKeyOf(stored));
-        if (collapsed || stored.kind !== "activate-ability") return collapsed;
+        if (collapsed) return collapsed;
+        if (stored.kind === "may-pay") {
+            return (
+                byGraveyardlessKey.get(graveyardlessKey(stored)) ?? undefined
+            );
+        }
+        if (stored.kind !== "activate-ability") return undefined;
         // Issue #4238 — an activation's `tapPlan` is HOW it is paid, not WHICH
         // decision it is: a verdict recorded before the planner stopped
         // spending a manland on its own animation names the old plan, and its
