@@ -359,7 +359,7 @@ agreement count, and each report says how many it left out. On a Preferred
 verdict, the Bot agrees when it plays the preferred move or any accepted
 alternative. A regrade alone is a promotion, because the fit reads the grade
 from the lock. Its last
-line says to run `bun run verdicts:pick-agreement` next (≈ 7 minutes, by
+line says to run `bun run verdicts:pick-agreement` next (about an hour, by
 hand, never part of `promote`): a promotion is when held-out pick agreement
 can change, and the block that run prints is the held-out receipt a strength
 claim owes (ADR 0138). The run exits 0 only when it searched every held-out
