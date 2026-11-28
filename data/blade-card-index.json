@@ -478,7 +478,7 @@
         },
         {
             "label": "bounce land: Simic Growth Chamber taps the other land before returning it",
-            "tier": "stretch",
+            "tier": "must",
             "needsSetup": true
         },
         {
