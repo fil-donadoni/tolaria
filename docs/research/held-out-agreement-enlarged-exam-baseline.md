@@ -15,6 +15,14 @@
 > `b9549cbb4`. Rebased onto `147633772`, the same lock still reproduces the
 > base's weights byte for byte (`derive:regenerate` leaves the tree clean),
 > because the fit does not read the exam side.
+>
+> A later refit (`fae38d47b`, then `b9807a1f1`) broke one exam verdict,
+> `v1-c25b5ae5…` (`optional-payment`, pick 2/5). Its accept candidate records
+> the eight graveyard cards the Bot ranked for exile. The player never chose
+> them: `choiceCandidates.ts` offers a single ranked set. The refit ranked a
+> different set, and the recorded key stopped resolving. This PR resolves such
+> a key by its other legs and the leg's size (`resolveVerdictMoves`), so the
+> verdict stays on the exam and n = 111 holds on the tip.
 
 **Question.** ADR 0186 Decision 7 makes the player Verdicts the exam until the
 Prototype gate is read. The held-out side had 24 verdicts, too few to tell one
