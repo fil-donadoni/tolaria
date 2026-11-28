@@ -32245,16 +32245,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
-        beyondBudget: {
-            cause: "horizon",
-            passesAt: { iterations: 2000 },
-            note: "Issue #9838. The `mana` term counts a mana source, never its yield, so this turn's two leaves score the same: Elves cast and the Chamber kept, or Elves cast and the Forest kept. Only a rollout that reaches the next turn sees the Chamber's {G}{U}. Missing knowledge: a source's yield in the evaluation.",
-        },
+        tier: "must",
         expect: {
             moves: [{ kind: "activate-mana-ability", card: "Forest" }],
         },
-        note: "Issue #9698, CR 605.3a / 106.4. The Chamber entered tapped and its return trigger is on the stack. Tapping the Forest in response and returning it casts the Llanowar Elves and keeps the Chamber, so the next turn has three mana. Passing returns the Chamber and casts the Elves off the Forest, which leaves one mana next turn. Measured: 0/5 seeds at 400 iterations, 4/15 at 1000, 15/15 at 2000.",
+        note: "Issue #9698, CR 605.3a / 106.4. The Chamber entered tapped and its return trigger is on the stack. Tapping the Forest in response and returning it casts the Llanowar Elves and keeps the Chamber, so the next turn has three mana. Passing returns the Chamber and casts the Elves off the Forest, which leaves one mana next turn. Under the root-clock rollout horizon (issue #9934) every rollout of both lines is scored at the same game turn, so the margin sees the Chamber's next turn: 10/10 seeds at 200, 400 and 800 iterations, ROBUST (issue #9838).",
     },
     {
         label: "bounce land: Simic Growth Chamber is never played as the only land",
