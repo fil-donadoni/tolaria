@@ -182,6 +182,7 @@ function sweepSelector(
                 "controller",
                 "plural",
                 "colors",
+                "excludeColors",
                 "excludeSource",
                 "mvFilter",
                 "token",
@@ -271,6 +272,16 @@ function sweepSelector(
         filter.excludeType =
             excluded.length === 1 ? excluded[0]! : [...excluded];
     if (descriptor.colors !== undefined) filter.color = descriptor.colors[0]!;
+    // CR 105.2 — "nonwhite creatures": the colour's negative, `excludeColor`
+    // 1:1 (a colourless permanent has nothing to exclude and is swept, CR
+    // 105.2c). Several "non<colour>" words are each excluded — an AND of
+    // negatives, which is what the filter's exclusion list means.
+    const excludedColors = descriptor.excludeColors;
+    if (excludedColors !== undefined)
+        filter.excludeColor =
+            excludedColors.length === 1
+                ? excludedColors[0]!
+                : [...excludedColors];
     // CR 205.3 — "non-Aura enchantments": the negative subtype, 1:1.
     const excludedSubtypes = descriptor.excludeSubtypes;
     if (excludedSubtypes !== undefined)

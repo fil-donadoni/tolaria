@@ -181,6 +181,23 @@ describe("a mass effect's declared outcome holds on the seeded board (CR 608.2)"
             "destroy, type minus subtype",
             [sweep(DESTROY, { type: "Creature", excludeSubtype: "Giant" })],
         ],
+        [
+            "destroy, excluding a colour",
+            [sweep(DESTROY, { type: "Creature", excludeColor: "W" })],
+        ],
+        [
+            "tap, excluding two colours",
+            [sweep(TAP, { type: "Creature", excludeColor: ["W", "U"] })],
+        ],
+        [
+            "bounce, excluding every colour (a colourless member)",
+            [
+                sweep(BOUNCE, {
+                    type: "Artifact",
+                    excludeColor: ["W", "U", "B", "R", "G"],
+                }),
+            ],
+        ],
         ["tap", [sweep(TAP, { type: "Artifact" })]],
         [
             "untap, your side only",
@@ -328,6 +345,16 @@ describe("a sweep that reads wider than its selector breaks the plan (CR 608.2)"
             "excluded subtype",
             sweep(DESTROY, { type: "Creature", excludeSubtype: "Giant" }),
             sweep(DESTROY, { type: "Creature" }),
+        ],
+        [
+            "excluded colour",
+            sweep(DESTROY, { type: "Creature", excludeColor: "W" }),
+            sweep(DESTROY, { type: "Creature" }),
+        ],
+        [
+            "excluded colour, one of two dropped",
+            sweep(TAP, { type: "Creature", excludeColor: ["W", "U"] }),
+            sweep(TAP, { type: "Creature", excludeColor: "W" }),
         ],
         [
             "excluded keyword",
@@ -560,6 +587,16 @@ describe("what the seeded board cannot predict keeps the fail-closed skip", () =
         [
             "a dynamic subtype",
             [sweep(DESTROY, { subtype: { ref: "$chosen" } })],
+        ],
+        [
+            "a colour beside an excluded colour",
+            [
+                sweep(DESTROY, {
+                    type: "Creature",
+                    color: "B",
+                    excludeColor: "W",
+                }),
+            ],
         ],
         [
             "a dynamic mana value ceiling",

@@ -56,6 +56,7 @@ import { getEventFieldRow } from "../../cards/eventFields";
 import { AMOUNT_KEYS } from "./validate";
 import { classLevelOf } from "../../cards/abilities/classLevels";
 import { LAND_SUBTYPE_MANA } from "../constants";
+import { COLORED_MANA_COLORS } from "../manaColors";
 import { hasPrepareSpell } from "../prepare";
 import { presentedDefId } from "../copy";
 import { STATIC_EFFECT_CTX, getEffectivePT } from "../layers";
@@ -4328,6 +4329,7 @@ const SWEEP_FILTER_KEYS: ReadonlySet<string> = new Set([
     "type",
     "subtype",
     "color",
+    "excludeColor",
     "excludeType",
     "excludeSubtype",
     "excludeAbility",
@@ -4449,6 +4451,20 @@ function sweepFilterSpecs(filter: EffectCardFilter | undefined): {
     if (!Object.keys(f).every((key) => SWEEP_FILTER_KEYS.has(key))) return null;
     if (typeof f.subtype === "object" && !Array.isArray(f.subtype)) return null;
     if (f.color !== undefined && typeof f.color !== "string") return null;
+    // CR 105.2 — "nonwhite": a colour the member must NOT be. Every member
+    // takes the first colour left open (colourless when all five are
+    // excluded, CR 105.2c — nothing to exclude), and each excluded colour
+    // seats one bystander of exactly that colour. Beside a positive `color`
+    // the two would be one clause read twice: unplanned.
+    const noColors = asList<string>(
+        f.excludeColor as string | string[] | undefined
+    );
+    if (noColors.length > 0 && f.color !== undefined) return null;
+    const memberColor =
+        f.color ??
+        (noColors.length > 0
+            ? COLORED_MANA_COLORS.find((c) => !noColors.includes(c))
+            : undefined);
     // CR 202.3 — a printed ceiling ("with mana value 3 or less") seats every
     // member AT it and one bystander just above, telling "at most" from both
     // "less than" and the ceiling's absence. A dynamic ceiling (`{ X: true }`)
@@ -4477,7 +4493,7 @@ function sweepFilterSpecs(filter: EffectCardFilter | undefined): {
     const base: SweepCardSpec = {
         types: [baseType],
         subtypes: [subtypes[0] ?? otherSubtype],
-        ...(f.color === undefined ? {} : { color: f.color }),
+        ...(memberColor === undefined ? {} : { color: memberColor }),
         ...(ceiling === undefined ? {} : { manaValue: ceiling }),
     };
 
@@ -4487,6 +4503,7 @@ function sweepFilterSpecs(filter: EffectCardFilter | undefined): {
             ...base,
             subtypes: base.subtypes.concat([s]),
         })),
+        ...noColors.map((c) => ({ ...base, color: c })),
     ];
     if (types.length > 0) {
         if (otherType === undefined) return null;
