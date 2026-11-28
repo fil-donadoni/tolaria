@@ -9244,6 +9244,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Blinkmoth Nexus",
+        "scryfallId": "bf51c665-7823-4d6a-b1da-8c2d93dae10b",
+        "oracleId": "40d45c02-6416-4e19-8fe3-0ddadf5ba627",
+        "firstSet": "dst",
+        "firstPrintId": "bf51c665-7823-4d6a-b1da-8c2d93dae10b",
+        "firstPrintSet": "dst",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Blinkmoth Well",
         "scryfallId": "e4c79155-b6d8-46df-891f-487b24c4e0d5",
         "oracleId": "dd3fd7cd-d8a1-48e2-861d-c7c40086dc75",
@@ -25464,6 +25474,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dread Statuary",
+        "scryfallId": "6814d15f-e7a5-4a73-9adc-88a1a4dec6cc",
+        "oracleId": "a9789ce4-69cf-435c-b99a-78a21609830c",
+        "firstSet": "wwk",
+        "firstPrintId": "6814d15f-e7a5-4a73-9adc-88a1a4dec6cc",
+        "firstPrintSet": "wwk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Dread Wight",
         "scryfallId": "65d332e2-4b2d-4131-84f7-862cb138c477",
         "oracleId": "f9078d79-3250-44e8-aba1-ab52e0ba4425",
@@ -34328,6 +34348,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Forbidding Watchtower",
+        "scryfallId": "96503ed7-aa68-439f-95b0-6ac2c48e3935",
+        "oracleId": "cabf7953-0fac-4dbb-b3ae-05e85e02b3fc",
+        "firstSet": "ulg",
+        "firstPrintId": "96503ed7-aa68-439f-95b0-6ac2c48e3935",
+        "firstPrintSet": "ulg",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Force of Nature",
         "scryfallId": "21551cb6-3a53-42dd-9bbd-4bc56304d6d3",
         "oracleId": "e3c4c27d-f263-4c69-a4fe-2928136ff68b",
@@ -36937,6 +36967,16 @@
         "firstPrintId": "d3ca6dd9-040a-4122-9308-8dcd0d506ada",
         "firstPrintSet": "dom",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Ghitu Encampment",
+        "scryfallId": "bf09ecef-1e30-4206-9648-8fe5c8a71c71",
+        "oracleId": "9cc02c16-8cf9-4ac7-9475-231c27121968",
+        "firstSet": "ulg",
+        "firstPrintId": "bf09ecef-1e30-4206-9648-8fe5c8a71c71",
+        "firstPrintSet": "ulg",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -44811,6 +44851,16 @@
         "firstPrintId": "9b33646b-a0e3-4344-873e-6711743bc85c",
         "firstPrintSet": "usg",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Hostile Desert",
+        "scryfallId": "250c35cb-77e7-4600-a915-ccf327fe3385",
+        "oracleId": "41459587-7509-404e-bd7d-fb8831dee789",
+        "firstSet": "hou",
+        "firstPrintId": "250c35cb-77e7-4600-a915-ccf327fe3385",
+        "firstPrintSet": "hou",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
