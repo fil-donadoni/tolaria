@@ -7482,7 +7482,13 @@ export const announceCast = mutation({
         const divideTotal = activeTargetRequirement?.divideAsChosen
             ? resolveDivideTotal(
                   activeTargetRequirement.divideAsChosen.total,
-                  chosenX
+                  chosenX,
+                  {
+                      state,
+                      controllerId: args.playerId,
+                      sourceInstanceId: args.cardInstanceId,
+                      priorTargets: [],
+                  }
               )
             : undefined;
         // CR 601.2c / 601.2d — the count the selection opens with, `undefined`

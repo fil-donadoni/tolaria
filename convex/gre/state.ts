@@ -1434,7 +1434,7 @@ export interface TargetCountAnnouncement {
  *  `SpellContext` over a synthetic stack item carrying the earlier picks as
  *  `targets`; the read is pure (a count touches no state). A source that is
  *  nowhere in the game reads 0. */
-function evaluateAnnouncedQuantity(
+export function evaluateAnnouncedQuantity(
     announcement: TargetCountAnnouncement,
     quantity: TargetCountQuantity,
     chosenX: number | undefined
@@ -18587,12 +18587,15 @@ export function buildSpellContext(
         // announcement and snapshotted on the stack item (`targetAmounts`);
         // when absent (e.g. a GRE-driven test that pre-set `targets` but no
         // amounts), fall back to the deterministic ≥1-each division below so
-        // the call is always safe. Empty targets / total <= 0 is a no-op.
+        // the call is always safe. Empty targets is a no-op; so is a total
+        // <= 0 with no announced split — an announced split stands even when
+        // a text-defined total would now read lower (CR 601.2d).
         dealDamageDividedAsChosen(
             targets: TargetSelection[],
             totalAmount: number
         ): void {
-            if (targets.length === 0 || totalAmount <= 0) return;
+            if (targets.length === 0) return;
+            if (item.targetAmounts === undefined && totalAmount <= 0) return;
             const split = resolveChosenDivision(
                 item.targetAmounts,
                 targets,

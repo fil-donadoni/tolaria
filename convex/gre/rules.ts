@@ -171,6 +171,7 @@ import {
     landPlayLockActive,
     normalizeManaCost,
     resolveTargetRequirementCount,
+    evaluateAnnouncedQuantity,
     restrictedUnitAllowsSpell,
     spellRestrictionSubject,
     emitBecameTargetEvents,
@@ -4843,6 +4844,23 @@ function triggerTargetMinMax(
     return { min: count.min, max };
 }
 
+/** CR 601.2d / 603.3d — the divide-as-you-choose budget a trigger announces
+ *  its split against: a fixed amount, or a text-defined quantity read off the
+ *  board as the ability is put on the stack ("X damage divided as you choose
+ *  …, where X is the number of lands you control"). A trigger never announces
+ *  an X (no CR 601.2b step), so an `"X"` / `"X+1"` budget stays unresolved. */
+function triggerDivideTotal(
+    req: TargetRequirement,
+    announcement: TargetCountAnnouncement
+): number | undefined {
+    const total = req.divideAsChosen?.total;
+    if (typeof total === "number") return total;
+    if (typeof total === "object") {
+        return evaluateAnnouncedQuantity(announcement, total, undefined);
+    }
+    return undefined;
+}
+
 /** The announcement-time target legality of ONE trigger stack item under ONE
  *  requirement (CR 603.3d) — the shared half of "which targets are legal right
  *  now", used both to decide whether a MODE is choosable at all (CR 603.3c) and
@@ -5302,17 +5320,17 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
         const { effectiveReq, effectiveLegal, sourcePower } =
             triggerTargetLegality(state, item, req);
 
+        const announcement: TargetCountAnnouncement = {
+            state,
+            controllerId: item.controllerId,
+            sourceInstanceId: item.id,
+            priorTargets: [],
+        };
+        const divideTotal = triggerDivideTotal(req, announcement);
         const { min, max } = triggerTargetMinMax(
             req.count,
-            req.divideAsChosen && typeof req.divideAsChosen.total === "number"
-                ? req.divideAsChosen.total
-                : undefined,
-            {
-                state,
-                controllerId: item.controllerId,
-                sourceInstanceId: item.id,
-                priorTargets: [],
-            }
+            divideTotal,
+            announcement
         );
         // CR 601.2c — an "up to X" bound that resolved to zero (Batroc
         // unkicked, issue #7210): the ability announces no targets and stays
@@ -5362,10 +5380,6 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
         // PendingTarget the spell path uses, pointed at this on-stack trigger
         // item (kind: "trigger"). A forced primary group seeds its picks, so
         // the sole-target auto-select never skips the queue (CR 601.2c).
-        const divideTotal =
-            req.divideAsChosen && typeof req.divideAsChosen.total === "number"
-                ? req.divideAsChosen.total
-                : undefined;
         // Reuses the SAME {min, max} `triggerTargetMinMax` already resolved
         // above (issue #2365) — this used to re-derive `count` independently
         // from `req.count`, which missed the object form's `max === "X"`
