@@ -20903,6 +20903,43 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #6334 — the mirror half: with no enters trigger on the bot's own creature, flickering it gains nothing and the opposing body's one-turn exile is the better answer. Green before the fix (Hill Giant 5/5 at 400) and after it (Hill Giant 5/5): the pending-return credit gives the Giant back to its owner at its full worth, so the exile is priced as the tempo it is, not as a kill — and, issue #7784 found, as exactly the tempo a Mountain's exile is. Issue #7791: the pending return is discounted by the block share of a creature the defending player gets back only after a combat still ahead in which the bot has a ready attacker, and the material aggregates and the Danger Clock read the board the returns restore (before, the Giant's exile read as the opponent's curve and clock gone, the Mountain's as a source lost for good). Settled margin: Giant +31.5 over Mountain and over flickering the Bears. 21/21 seeds (0–19, 0xb1ade) on the committed and on the locally refit vector; the pick reads `material-tiebreak` because the reward band clips here (the Kavu anchor reads the same), with `announcement-variant`'s settled payoff agreeing.",
     },
     {
+        // CR 603.7a / 610.3 — the cast decision BEFORE the blink: Flickerwisp
+        // in hand, five Plains open, a vanilla board on each side (the
+        // Bot-play sweep's own position). Its enters trigger exiles a
+        // permanent only until the next end step, so in hand it is a 3/1
+        // flier plus a turn of tempo — and the Bot passed, valuing the held
+        // card at the exile's full removal price PLUS a reanimation for the
+        // delayed return, more than the creature it becomes on the board.
+        label: "temporary exile: casts Flickerwisp onto a vanilla board",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Flickerwisp", owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 5 },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Castle", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Ornithopter", owner: "opp", zone: "battlefield" },
+                { name: "Castle", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+            landCount: 0,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Flickerwisp" }],
+        },
+        note: "Issue #11026. Proof-of-failure: the `exile` valuer pricing a temporary exile as removal (`temporaryExileValue` unused, `opValuers.ts`) — the held Flickerwisp's enters trigger reads 312 instead of 52, and the Bot passes. A `moves` matcher, so `mustCoveredCards` credits Flickerwisp's never-chosen sweep verdict.",
+    },
+    {
         // CR 701.12b — Gilded Drake's enters trigger exchanges control of
         // the Drake and up to one target creature an opponent controls; with
         // no exchange the Drake is sacrificed. Every answer moves permanents
