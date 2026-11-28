@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 
 /** How long the controller's morphing primary pill ignores pointer clicks
  *  after the action it shows changes (issue #10973). Long enough to swallow
@@ -23,19 +23,23 @@ export function isPrimaryClickArmed(
  *
  *  `key` is the identity of the descriptor the slot currently shows (its
  *  `ControllerAction.key`, or `undefined` for the idle placeholder). Returns
- *  `guard`, which wraps a click handler so a POINTER click within the window
- *  after `key` changes is dropped. Visual-free by design: nothing is
- *  disabled or re-rendered, so geometry never moves. Hotkeys do not go
- *  through here — they keep their own pending-intent gating. */
+ *  `guard`, which wraps the button's click handler so any activation of the
+ *  button itself (pointer, or Enter/Space on the focused button) within the
+ *  window after `key` changes is dropped. Visual-free by design: nothing is
+ *  disabled or re-rendered, so geometry never moves. The game's global
+ *  hotkeys do not go through here — they keep their own pending-intent
+ *  gating. */
 export function usePrimaryClickGuard(
     key: string | undefined
 ): (onClick: (() => void) | undefined) => (() => void) | undefined {
     const lastKey = useRef(key);
     const changedAt = useRef<number | null>(null);
 
-    // React flushes passive effects before dispatching the next discrete
-    // event, so a click can never observe the new `key` before this ran.
-    useEffect(() => {
+    // A layout effect runs in the same commit that paints the new `key`, so
+    // no click can land on the new action before the window is recorded —
+    // a passive effect would leave a sub-frame gap after a default-priority
+    // (subscription-driven) render.
+    useLayoutEffect(() => {
         if (lastKey.current === key) return;
         lastKey.current = key;
         changedAt.current = Date.now();

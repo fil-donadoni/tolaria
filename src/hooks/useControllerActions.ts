@@ -844,7 +844,9 @@ export function useControllerActions(): ControllerState {
                 shortcut: HOTKEYS.passPriority,
                 label: `Attack with all (${eligibleIds.length})`,
                 tone: "primary",
-                disabled: isBusy,
+                // Like Space and Confirm above: nothing is offered while a
+                // creature still awaits its attack target.
+                disabled: isBusy || attackSequence.choosingTarget,
                 // Same gate as the Space branch: a click landing before a
                 // creature's `toggleAttacker` round-trip still sees an empty
                 // declaration and must not offer to widen it.
