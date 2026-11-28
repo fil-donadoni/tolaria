@@ -46,14 +46,19 @@
 // own library, on a spell in hand, an ability activated from hand, or an
 // ability of a permanent the seat controls. Its finds are the list's card ids
 // with a copy left in the library that its filter accepts
-// (`definitionMatchesFilter`, the engine's definition-level matcher). It is
+// (`definitionMatchesFilter`, the engine's definition-level matcher); a
+// ceiling that reads the cost-sacrificed permanent (CR 608.2h) is the largest
+// the site's own sacrifice cost can take from the board now. It is
 // payable when the seat's untapped mana pays its mana cost now (`canPayCost`,
 // the castability gate's own greedy) and a `{T}` it asks for is untapped.
 //
 // A SEAT WITH NO DECK KNOWLEDGE yields no column: zero, never a guess.
 
 import { tryGetDefinition } from "../../../cards/registry";
-import { matchesPermanentFilter } from "../../../cards/filters";
+import {
+    matchesPermanentFilter,
+    type PermanentFilter,
+} from "../../../cards/filters";
 import type {
     ActivatedAbility,
     CardDefinition,
@@ -63,7 +68,11 @@ import type {
     EffectValue,
     ManaCost,
 } from "../../../cards/types";
-import { definitionMatchesFilter } from "../../alternativeCost";
+import {
+    definitionMatchesFilter,
+    sacrificeCandidateReads,
+    type SacrificeCandidateRead,
+} from "../../alternativeCost";
 import { isTapLockedBySummoningSickness, manaValue } from "../../constants";
 import { unseenRemainder } from "../../deckKnowledge";
 import { isFaceDownExile } from "../../faceDown";
@@ -639,6 +648,9 @@ function distanceOf(requirement: Requirement, copies: Copies): Distance {
 type Search = {
     readonly filter: EffectCardFilter;
     readonly payable: boolean;
+    /** What the site's "sacrifice a <filter>" cost could take, so a ceiling
+     *  reading the sacrificed permanent (CR 608.2h) is bounded by the board. */
+    readonly sacrificeCandidates?: readonly SacrificeCandidateRead[];
 };
 
 function searchFiltersOf(
@@ -658,32 +670,54 @@ function searchFiltersOf(
     return out;
 }
 
-function searchesOf(seat: PlayerState, now: ManaUnits): Search[] {
+function searchesOf(
+    state: GameState,
+    seat: PlayerState,
+    now: ManaUnits
+): Search[] {
     const out: Search[] = [];
     const life = seat.life;
     const push = (
         scripts: (readonly EffectOp[])[],
         cost: ManaCost | undefined,
-        untapped: boolean
+        untapped: boolean,
+        sacrificeFilter?: PermanentFilter
     ): void => {
         const filters = searchFiltersOf(scripts);
         if (filters.length === 0) return;
         const payable = untapped && canPayCost(now, cost, { life });
+        const sacrificeCandidates = sacrificeFilter
+            ? sacrificeCandidateReads(state, seat.id, sacrificeFilter)
+            : undefined;
         for (let i = 0; i < filters.length; i++) {
-            out.push({ filter: filters[i], payable });
+            out.push({
+                filter: filters[i],
+                payable,
+                ...(sacrificeCandidates ? { sacrificeCandidates } : {}),
+            });
         }
     };
     for (let h = 0; h < seat.hand.length; h++) {
         const def = tryGetDefinition(cardIdOf(seat.hand[h]));
         if (!def) continue;
         if (!def.types.includes("Land")) {
-            push(siteScripts(def), def.manaCost, true);
+            push(
+                siteScripts(def),
+                def.manaCost,
+                true,
+                def.additionalCosts?.sacrificeFilter
+            );
         }
         const activated = def.activatedAbilities ?? [];
         for (let i = 0; i < activated.length; i++) {
             const ability = activated[i];
             if (!ability.activateFromHand) continue;
-            push(siteScripts(ability), ability.cost.mana, !ability.cost.tap);
+            push(
+                siteScripts(ability),
+                ability.cost.mana,
+                !ability.cost.tap,
+                ability.cost.sacrificeFilter
+            );
         }
     }
     for (let b = 0; b < seat.battlefield.length; b++) {
@@ -704,7 +738,8 @@ function searchesOf(seat: PlayerState, now: ManaUnits): Search[] {
                 !(
                     ability.cost.tap &&
                     (card.isTapped || isTapLockedBySummoningSickness(card))
-                )
+                ),
+                ability.cost.sacrificeFilter
             );
         }
     }
@@ -715,7 +750,15 @@ function findsOf(search: Search, library: ReadonlyMap<string, number>) {
     const finds: string[] = [];
     library.forEach((_n, id) => {
         const def = tryGetDefinition(id);
-        if (def && definitionMatchesFilter(def, search.filter, "hand")) {
+        if (
+            def &&
+            definitionMatchesFilter(
+                def,
+                search.filter,
+                "hand",
+                search.sacrificeCandidates
+            )
+        ) {
             finds.push(id);
         }
     });
@@ -747,7 +790,7 @@ export function deckNeedMeasures(
     };
 
     const copies = copiesOf(state, seat, list);
-    const searches = searchesOf(seat, now);
+    const searches = searchesOf(state, seat, now);
     const finds = searches.map((search) => findsOf(search, copies.library));
     const findSets = finds.map((ids) => new Set(ids));
     const searchIds = new Set<string>();

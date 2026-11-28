@@ -19,6 +19,11 @@
  * cast once the spell is paid for: a card found and never cast is worth less
  * to the evaluator than the mana a later payment (a Pact's upkeep cost) takes.
  *
+ * A search whose ceiling reads the permanent sacrificed to cast it ("mana
+ * value X or less, where X is 2 plus the sacrificed creature's mana value",
+ * CR 608.2h) is posed against the largest the holder's own permanents can make
+ * that ceiling: a candidate above it is a card no victim lets the search take.
+ *
  * A search that puts the card on TOP of the library ("search for a card, then
  * shuffle and put that card on top") has the same limit: on a library of
  * basic lands the card it finds is a land and the next draw (CR 504.1) is a
@@ -30,7 +35,11 @@
  * hash (`scripts/lib/oracle-bot-reach.ts`).
  */
 
-import { handCardMatchesFilter } from "../alternativeCost";
+import {
+    definitionMatchesFilter,
+    type SacrificeCandidateRead,
+} from "../alternativeCost";
+import { matchesPermanentFilter } from "../../cards/filters";
 import { tryGetCardByName } from "../../cards";
 import { getColorsFromCost } from "../../cards/colors";
 import type {
@@ -138,13 +147,54 @@ function castableFrom(
     );
 }
 
+/** CR 608.2h — what the spell's "sacrifice a <filter>" cost could take from
+ *  the holder's `permanents` (card names), read off their printed
+ *  characteristics; undefined when the spell owes no such cost. */
+function sacrificeCandidatesOf(
+    def: CardDefinition,
+    permanents: readonly string[]
+): SacrificeCandidateRead[] | undefined {
+    const filter = def.additionalCosts?.sacrificeFilter;
+    if (!filter) return undefined;
+    const out: SacrificeCandidateRead[] = [];
+    for (let i = 0; i < permanents.length; i++) {
+        const card = tryGetCardByName(permanents[i]);
+        if (
+            !card ||
+            !matchesPermanentFilter(
+                {
+                    id: card.id,
+                    name: card.name,
+                    types: card.types,
+                    subtypes: card.subtypes ?? [],
+                    supertypes: card.supertypes ?? [],
+                    staticAbilities: [],
+                },
+                filter
+            )
+        )
+            continue;
+        out.push({
+            manaValue: manaValue(card.manaCost),
+            ...(typeof card.power === "number" ? { power: card.power } : {}),
+            ...(typeof card.toughness === "number"
+                ? { toughness: card.toughness }
+                : {}),
+        });
+    }
+    return out;
+}
+
 /** The library card the position hands a spell that puts a searched card onto
  *  the battlefield, into the hand or on top of the library, or none. `lands`
  *  are the holder's lands in the position: a card searched into the hand is
  *  posed only if they can cast it once the spell is paid for. */
 export function libraryPutPose(
     def: CardDefinition,
-    lands: readonly string[] = []
+    lands: readonly string[] = [],
+    /** The holder's battlefield (card names), for a ceiling that reads the
+     *  permanent sacrificed to cast the spell. */
+    permanents: readonly string[] = []
 ): ScenarioCard[] {
     if (!def.types.some((t) => t === "Instant" || t === "Sorcery")) return [];
     const search = libraryPutSearch(def.effects ?? []);
@@ -171,12 +221,14 @@ export function libraryPutPose(
         payment === undefined ? 0 : manaValue(payment)
     );
     const candidates = toHand ? HAND_CANDIDATES : LIBRARY_CANDIDATES;
+    const victims = sacrificeCandidatesOf(def, permanents);
     for (let i = 0; i < candidates.length; i++) {
         const name = candidates[i];
         const candidate = tryGetCardByName(name);
         if (
             !candidate ||
-            (filter && !handCardMatchesFilter({ card: candidate }, filter)) ||
+            (filter &&
+                !definitionMatchesFilter(candidate, filter, "hand", victims)) ||
             (toHand && !castableFrom(candidate, lands, spent))
         )
             continue;

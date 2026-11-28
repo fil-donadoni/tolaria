@@ -24,11 +24,15 @@
 // `applyAdditionalCostLegForSearch` — that is NOT a park, so it does not appear
 // here.
 //
-// Because every cast-side park is K=1, this module has no variant enumerator:
-// `planCastCostPicks` returns the single deterministic plan, and `moves.ts`
-// attaches it to every cast move. The per-kind K table that documents this (and
-// delimits the kicker optional-cost axis, `gre/kicker.ts`, and the activation
-// victim axis, `gre/activationCostPicks.ts`) lives in `gre/parkKinds.ts`.
+// The one exception is the NON-FUNGIBLE victim (ADR 0091 Amendment I): a spell
+// whose own script reads the cost-sacrifice snapshot (`{ sacrificed: { read }
+// }`, CR 608.2h — Eldritch Evolution's "X is 2 plus the sacrificed creature's
+// mana value") resolves differently per victim, so cheapest-first is the worst
+// pick for that class. `enumerateCastCostPicks` emits one variant per distinct
+// snapshot for it; every other cast keeps `planCastCostPicks`'s single plan.
+// The per-kind K table (which also delimits the kicker optional-cost axis,
+// `gre/kicker.ts`, and the activation victim axis, `gre/activationCostPicks.ts`)
+// lives in `gre/parkKinds.ts`.
 
 import { resolveAdditionalCosts } from "./additionalCost";
 import { getStaticAdditionalSacrifices } from "./state";
@@ -48,6 +52,7 @@ import {
     tapPaymentPickIds,
     autoResolveFungible,
     buildSacrificeRequirements,
+    sacrificeSourceSnapshot,
     type SacrificeRequirement,
     type SacrificeSelection,
 } from "./sacrificeChoice";
@@ -56,6 +61,7 @@ import {
     cheapestFirst,
     chooseCastExileCost,
     completeSacrificeSelection,
+    nextSacrificeCandidates,
 } from "./paymentPicks";
 import { buildCastExileCostChoice, type CastFromZone } from "./castCost";
 import { getFlashbackAdditionalCost } from "./flashback";
@@ -574,6 +580,129 @@ export function planCastCostPicks(
         return undefined;
     }
     return picks;
+}
+
+/** At most this many victim variants per cast (ADR 0091 Amendment I). Past
+ *  the cap the cheapest classes and the single largest are kept, so the
+ *  variant a "the bigger the victim, the bigger the effect" spell wants is
+ *  never the one truncated. */
+export const MAX_CAST_VICTIM_VARIANTS = 4;
+
+const readsCostSacrificeCache = new WeakMap<CardDefinition, boolean>();
+
+/** Does any node of `node` read the cost-sacrifice snapshot — a
+ *  `{ sacrificed: { read } }` value or filter field (CR 608.2h)? */
+function readsSacrificedValue(node: unknown): boolean {
+    if (Array.isArray(node)) {
+        for (let i = 0; i < node.length; i++) {
+            if (readsSacrificedValue(node[i])) return true;
+        }
+        return false;
+    }
+    if (node === null || typeof node !== "object") return false;
+    const rec = node as Record<string, unknown>;
+    const spec = rec.sacrificed;
+    if (spec !== null && typeof spec === "object" && "read" in spec) {
+        return true;
+    }
+    const childList = Object.values(rec);
+    for (let i = 0; i < childList.length; i++) {
+        if (readsSacrificedValue(childList[i])) return true;
+    }
+    return false;
+}
+
+/** CR 608.2h — does the SPELL's resolution read the permanent sacrificed to
+ *  cast it: its Effect Script, a mode's script, or the `aiEffects` shadow a
+ *  `resolve()` card declares? Then the victim is not fungible — two victims
+ *  with different characteristics resolve to different effects. An activated
+ *  or triggered ability's script is not the spell's and is not read. */
+export function spellReadsCostSacrifice(def: CardDefinition): boolean {
+    const cached = readsCostSacrificeCache.get(def);
+    if (cached !== undefined) return cached;
+    const reads =
+        readsSacrificedValue(def.effects) ||
+        readsSacrificedValue(def.aiEffects) ||
+        (def.modes ?? []).some((m) => readsSacrificedValue(m.effects));
+    readsCostSacrificeCache.set(def, reads);
+    return reads;
+}
+
+/** Every cast-cost plan worth searching over for one cast (ADR 0091
+ *  decision 4 and its Amendment I). The head is always
+ *  {@link planCastCostPicks}'s deterministic plan, so a caller taking only the
+ *  head reproduces the K=1 policy. Empty when a leg has no legal payment.
+ *
+ *  The sacrifice victim varies only when the victim is NOT fungible: the
+ *  spell reads the cost-sacrifice snapshot ({@link spellReadsCostSacrifice}),
+ *  the cast owes exactly one submitted victim, and no alternative cost merges
+ *  its permanent leg into the selection. One variant per distinct snapshot —
+ *  the characteristics CR 608.2h lets the resolution read (mana value, power,
+ *  toughness, colours, types, subtypes) — taking the cheapest-first victim of
+ *  each class, since two victims the resolution cannot tell apart are the
+ *  same decision. */
+export function enumerateCastCostPicks(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    def: CardDefinition | undefined,
+    chosenLegId: string | undefined,
+    opts?: Parameters<typeof planCastCostPicks>[5]
+): (CastCostPicks | undefined)[] {
+    const base = planCastCostPicks(state, player, card, def, chosenLegId, opts);
+    if (base === null) return [];
+    if (
+        !def ||
+        base?.sacrificeIds?.length !== 1 ||
+        opts?.altCost?.permanent ||
+        !spellReadsCostSacrifice(def)
+    ) {
+        return [base];
+    }
+    const { selection } = buildCastCostSelection(
+        state,
+        player,
+        card,
+        resolveAdditionalCosts(def.additionalCosts, chosenLegId),
+        def.name ?? "Sacrifice",
+        opts?.castFromZone ?? "hand"
+    );
+    // The varying pick must be the snapshot one: the card's own filter is the
+    // first requirement (`buildCastCostSelection`'s order) and the only one
+    // snapshot-flagged, and nothing auto-resolved ahead of it.
+    if (
+        !selection ||
+        selection.picked.length > 0 ||
+        selection.requirements[0]?.snapshot !== true
+    ) {
+        return [base];
+    }
+    const seen = new Set<string>();
+    const classes: CastCostPicks[] = [];
+    const victimList = nextSacrificeCandidates(state, selection);
+    for (let i = 0; i < victimList.length; i++) {
+        const victim = victimList[i];
+        // The snapshot minus its instance id: what the resolution can read.
+        const key = JSON.stringify({
+            ...sacrificeSourceSnapshot(state, victim),
+            cardInstanceId: undefined,
+        });
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const trial: SacrificeSelection = {
+            ...selection,
+            picked: selection.picked.slice(),
+        };
+        const submitted = completeSacrificeSelection(state, trial, victim);
+        if (submitted === null || submitted.length !== 1) continue;
+        classes.push({ ...base, sacrificeIds: submitted });
+    }
+    if (classes.length === 0) return [base];
+    if (classes.length <= MAX_CAST_VICTIM_VARIANTS) return classes;
+    return [
+        ...classes.slice(0, MAX_CAST_VICTIM_VARIANTS - 1),
+        classes[classes.length - 1]!,
+    ];
 }
 
 /** CR 701.59c — the plan for one announce variant's paid collect-evidence

@@ -1089,7 +1089,7 @@ export function botReachSpec(
             ? Array<string>(c.count ?? 1).fill(c.name)
             : []
     );
-    cards.push(
+    const poses = [
         ...target.cards,
         ...(blocked?.cards ?? []),
         ...cost.cards,
@@ -1108,7 +1108,16 @@ export function botReachSpec(
         ...graveyardPlayPose(def),
         ...blinkPose(def),
         ...creatureSweepPose(def),
-        ...libraryPutPose(def, holderLands),
+    ];
+    // The holder's permanents so far — what a cost can sacrifice to cast it.
+    const holderPermanents = [...cards, ...poses].flatMap((c) =>
+        c.owner === "me" && c.zone === "battlefield"
+            ? Array<string>(c.count ?? 1).fill(c.name)
+            : []
+    );
+    cards.push(
+        ...poses,
+        ...libraryPutPose(def, holderLands, holderPermanents),
         ...costAlternativesPose(def)
     );
     const stack = needsStackTarget(def)
