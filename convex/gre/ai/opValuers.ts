@@ -2837,10 +2837,10 @@ const extraTurn: Valuer<"extraTurn"> = () => ({
 // NOT the extra-turn STRUCTURAL CREDIT, and must never become it (ADR 0111
 // decision 6). That credit lives in `selectRootMove` (`search.ts`) and exists
 // only because an extra TURN falls OUTSIDE the rollout horizon — ADR 0015 ends
-// each rollout at the start of the bot's next turn, so the granted turn is
+// each rollout at the bot's next precombat main phase, so the granted turn is
 // never played out and its value would otherwise be invisible. An extra COMBAT
-// is INSIDE the horizon (`playoutRollout` breaks only on
-// `turnChanged && activePlayerId === botId`), so it is simulated and its value
+// is INSIDE the horizon (`rollout` breaks only at the root-clock boundary,
+// `pastRootHorizon`), so it is simulated and its value
 // reaches the edge's mean reward by ordinary measurement; adding a reward
 // credit for it would double-count. This table is the orthogonal thing: a
 // caster-relative PRIOR over candidate cards/choices (`candidateValue.ts`,

@@ -98,7 +98,7 @@ describe("wasted-mana hold (CR 106.4)", () => {
         }
     }, 120000);
 
-    it("Dark Ritual with an empty hand — the same class without a sacrifice cost", () => {
+    it("Dark Ritual with an empty hand — the same class without a sacrifice cost: the hold settles it or pass leads", () => {
         const state = build({
             cards: [{ name: "Dark Ritual", owner: "me", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
@@ -106,7 +106,14 @@ describe("wasted-mana hold (CR 106.4)", () => {
             landCount: 4,
             libraryCount: 20,
         });
-        expect(mechanismsOf(state, SEED)).toContain("wasted-mana-hold");
+        // On the root clock (ADR 0015 Amendment I) the tree stops at the
+        // horizon, so `pass`'s subtree no longer carries the ritual a ply
+        // deeper and can lead the pool on its own, as Metamorphosis above.
+        const [record] = recordsOf(state, SEED);
+        expect(record.moveKind).toBe("pass");
+        if (record.mechanism !== "wasted-mana-hold") {
+            expect(record.chosenMean).toBe(record.bestMean);
+        }
     }, 120000);
 
     it("NEGATIVE CONTROL: the hold stays silent when Dark Ritual turns on a Craw Wurm", () => {

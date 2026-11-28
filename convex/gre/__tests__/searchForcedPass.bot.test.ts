@@ -47,7 +47,9 @@ type Fixture = {
     /** Label prefix of the blade entry — unique, resolved below. */
     labelPrefix: string;
     /** Recorded on the tree BEFORE the fast path existed (base 6a9791267).
-     *  The chosen move and the RNG counter do not move with a refit; the root
+     *  The chosen move and the RNG counter do not move with a refit (a search
+     *  change can move the move: the large fixture's was re-read when the
+     *  horizon moved to the root's clock, ADR 0015 Amendment I); the root
      *  digest — sha256 (first 16 hex) over `key:visits:meanReward` of every
      *  root candidate, most-visited first, the whole root table unrounded — is
      *  `fixtures/searchForcedPass.pins.json`, re-recorded by `bun run
@@ -82,7 +84,7 @@ const FIXTURES: Fixture[] = [
         name: "large (49 moves)",
         labelPrefix: "redirection shield: shields ITS OWN side and point",
         expected: {
-            chosen: "cast Captain's Maneuver (X=1) → Grizzly Bears, Craw Wurm",
+            chosen: "cast Captain's Maneuver (X=1) → Blade P1, Blade P2",
             gameRngCounter: 118,
         },
     },

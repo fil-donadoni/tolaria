@@ -1,15 +1,14 @@
-// ADR 0015 — the rollout horizon measured on the SEARCH ROOT's clock, behind
-// the `horizon-b` search variant (issue #10816, PRD issue #10815).
+// ADR 0015 Amendment I — the rollout horizon measured on the SEARCH ROOT's
+// clock, on production defaults (issue #9934, PRD issue #10815).
 //
-// Production reads the horizon from where each rollout STARTS: a narrow tree
-// line (a chain of passes PUCT deepened into the Bot's next turn) begins its
-// rollout past the boundary and plays a further round, while a branching
-// line stays shallow and is scored a round earlier. Under `horizon-b` every
-// line is scored at ONE game-clock point — the precombat main phase of the
-// first turn after the root's on which the Bot is active — and the tree
-// never expands a node past it. Both assertions read the knob through
-// `resolveRolloutHorizon(LADDER_VARIANTS["horizon-b"])`, so a knob that is
-// ignored reds them.
+// Measured from where each rollout STARTS, a narrow tree line (a chain of
+// passes PUCT deepened into the Bot's next turn) would begin its rollout past
+// the boundary and play a further round, while a branching line stays
+// shallow and is scored a round earlier. On the root's clock every line is
+// scored at ONE game-clock point — the precombat main phase of the first
+// turn after the root's on which the Bot is active — and the tree never
+// expands a node past it. No variant is installed: both assertions run the
+// shipped search.
 
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
@@ -17,11 +16,7 @@ import { buildBladeState } from "../ai/blade/build";
 import { seatPlayerId } from "../ai/blade/matcher";
 import type { BladeScenario } from "../ai/blade/types";
 import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
-import {
-    DEFAULT_ACTION_PRIORS,
-    LADDER_VARIANTS,
-    resolveRolloutHorizon,
-} from "../ai/searchVariant";
+import { DEFAULT_ACTION_PRIORS } from "../ai/searchVariant";
 import { cloneGameState } from "../clone";
 import { enumerateMoves } from "../moves";
 import { PHASE_ORDER } from "../phases";
@@ -38,8 +33,6 @@ import {
     type RootHorizonTracker,
 } from "../search";
 import type { GameState } from "../state";
-
-const KNOB = resolveRolloutHorizon(LADDER_VARIANTS["horizon-b"]);
 
 function board(): GameState {
     const scenario: BladeScenario = {
@@ -66,7 +59,7 @@ function clockOf(state: GameState) {
     return { turn: state.turn, step: PHASE_ORDER.indexOf(state.phase) };
 }
 
-describe("rollout horizon on the root clock, horizon-b (ADR 0015)", () => {
+describe("rollout horizon on the root clock (ADR 0015)", () => {
     it("a pass-chain line and a branching line are both scored at the Bot's next precombat main phase", () => {
         const root = board();
         const botId = seatPlayerId(root, "me");
@@ -78,11 +71,9 @@ describe("rollout horizon on the root clock, horizon-b (ADR 0015)", () => {
             // Narrow: passes the tree deepened into the Bot's next turn, each
             // state shown to the iteration's tracker as the tree would.
             const narrow = cloneGameState(root);
-            const narrowHorizon = rootHorizonTracker(KNOB, root.turn);
+            const narrowHorizon = rootHorizonTracker(root.turn);
             for (let i = 0; i < 400 && narrow.turn < nextBotTurn; i++) {
-                if (narrowHorizon) {
-                    pastRootHorizon(narrowHorizon, narrow, botId);
-                }
+                pastRootHorizon(narrowHorizon, narrow, botId);
                 const pid = advanceToDecision(narrow);
                 if (!pid) throw new Error("no decision before the line's end");
                 applyMoveInSearch(narrow, pid, { kind: "pass" });
@@ -119,7 +110,7 @@ describe("rollout horizon on the root clock, horizon-b (ADR 0015)", () => {
                 DEFAULT_EVAL_WEIGHTS,
                 since,
                 undefined,
-                rootHorizonTracker(KNOB, root.turn)
+                rootHorizonTracker(root.turn)
             );
 
             for (const leaf of [narrow, branching]) {
@@ -149,8 +140,7 @@ describe("rollout horizon on the root clock, horizon-b (ADR 0015)", () => {
                 null,
                 false,
                 undefined,
-                undefined,
-                KNOB
+                undefined
             );
         }
 
@@ -187,11 +177,7 @@ describe("rollout horizon on the root clock, horizon-b (ADR 0015)", () => {
                 walk(edge.node, next, { ...seen });
             }
         };
-        walk(
-            tree,
-            cloneGameState(root),
-            rootHorizonTracker("next-bot-main", root.turn)!
-        );
+        walk(tree, cloneGameState(root), rootHorizonTracker(root.turn));
 
         // Non-vacuous: the narrow lines did reach the boundary.
         expect(atBoundary).toBeGreaterThan(0);

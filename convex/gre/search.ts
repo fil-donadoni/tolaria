@@ -260,8 +260,6 @@ import {
     resolveDisabledRootRules,
     resolveEvalWeights,
     resolveForcedGuide,
-    resolveRolloutHorizon,
-    type RolloutHorizon,
     resolveOpponentModel,
     stepLineCursor,
     type ActionPriorConfig,
@@ -333,14 +331,6 @@ export const DEFAULT_BUDGET: SearchBudget = { iterations: 400, timeMs: 1500 };
 // its window when the edge is barely visited, yet — because it decays as
 // 1/(1+visits) — to fall below the UCB1 exploration term within a handful of
 // visits, so it can never dominate the accumulated reward.
-/** Rollout horizon, in EXTRA full bot turns beyond the first (ADR 0015). The
- *  rollout always plays forward to the start of the bot's NEXT turn — a complete
- *  round in which BOTH players had symmetric opportunity to act — then this many
- *  additional bot-turn-starts before scoring. `0` = score at the bot's next turn
- *  start (the baseline). A turn-clock horizon, unlike a fixed ply count, judges
- *  every candidate after the same game-clock progress, removing the own-turn
- *  action bias a ply horizon gives "do something now" over "pass". */
-const ROLLOUT_EXTRA_BOT_TURNS = 0;
 /** Hard cap on turn-boundary crossings inside a single rollout — guards against
  *  a stall loop (a board that never advances the active player back to the bot,
  *  e.g. mutual passing across empty turns until someone decks) and bounds the
@@ -1725,13 +1715,15 @@ export function advanceToDecision(state: GameState): string | null {
  *  otherwise the reactive-aware `selectRolloutMove` default policy (ADR 0021
  *  slice 2). Mutates `state` (caller owns it).
  *
- *  Horizon (ADR 0015): the rollout stops at the START of the bot's next turn
- *  (a full round; `ROLLOUT_EXTRA_BOT_TURNS` adds further bot-turn-starts),
- *  NOT after a fixed ply count. Scoring every candidate at the same game-clock
- *  boundary — after both players have had a symmetric chance to act — removes
- *  the action bias of a ply horizon, where "act on my own turn" was scored
- *  before the opponent's reply but "pass" was scored after the opponent
- *  developed. `MAX_ROLLOUT_TURNS` / `MAX_ROLLOUT_PLIES` bound stall loops. */
+ *  Horizon (ADR 0015, Amendment I): the rollout stops at the root-clock
+ *  boundary (`pastRootHorizon`: the Bot's next precombat main phase after
+ *  the search root's turn), NOT after a fixed ply count and NOT a round past
+ *  wherever the rollout happened to start. Scoring every candidate at the same
+ *  game-clock point — after both players have had a symmetric chance to act —
+ *  removes the action bias of a ply horizon, where "act on my own turn" was
+ *  scored before the opponent's reply but "pass" was scored after the
+ *  opponent developed. `MAX_ROLLOUT_TURNS` / `MAX_ROLLOUT_PLIES` bound stall
+ *  loops. */
 /** The exploration epsilon to use at `state` (ADR 0021, issue #229). Drops to
  *  `ROLLOUT_EPSILON_REACTIVE` on a reactive combat line — a declared combat in
  *  which EITHER player holds castable interaction — so the narrow ambush /
@@ -1873,24 +1865,19 @@ export type RolloutDeadline = {
     cut: boolean;
 };
 
-/** One iteration's view of the root-clock rollout horizon (ADR 0015, issue
- *  #10816): the root's turn, and the first turn after it on which the Bot is
- *  the active player, recorded the first time a state of that turn is
+/** One iteration's view of the root-clock rollout horizon (ADR 0015,
+ *  Amendment I): the root's turn, and the first turn after it on which the
+ *  Bot is the active player, recorded the first time a state of that turn is
  *  observed — in the tree or in the rollout, so every state must be shown in
  *  play order. One per iteration, threaded from `iterate` into its rollout. */
 export type RootHorizonTracker = {
-    readonly horizon: RolloutHorizon;
     readonly rootTurn: number;
     firstBotTurn: number | null;
 };
 
-/** A fresh tracker for one iteration from the root at `rootTurn`, or
- *  `undefined` under the production horizon (`horizon` null). */
-export function rootHorizonTracker(
-    horizon: RolloutHorizon | null,
-    rootTurn: number
-): RootHorizonTracker | undefined {
-    return horizon ? { horizon, rootTurn, firstBotTurn: null } : undefined;
+/** A fresh tracker for one iteration from the root at `rootTurn`. */
+export function rootHorizonTracker(rootTurn: number): RootHorizonTracker {
+    return { rootTurn, firstBotTurn: null };
 }
 
 const PRECOMBAT_MAIN_STEP = PHASE_ORDER.indexOf("PRECOMBAT_MAIN");
@@ -1929,16 +1916,15 @@ export function rollout(
     since?: GameClock,
     /** The search's wall-clock cap, read once per ply (issue #10408). */
     deadline?: RolloutDeadline,
-    /** The iteration's root-clock horizon (issue #10816). Absent = the
-     *  production horizon, read from this rollout's start. */
-    horizon?: RootHorizonTracker,
+    /** The iteration's root-clock horizon (ADR 0015). Absent = a rollout
+     *  called on its own, whose start IS the root. */
+    horizon: RootHorizonTracker = rootHorizonTracker(state.turn),
     /** The iteration's forced-guide Line, where the tree left it. Absent =
      *  production. */
     line?: LineTrack
 ): Leaf {
     const startTurn = state.turn;
     let lastTurn = state.turn;
-    let botTurnStarts = 0;
     // Issue #4460 — the rollout owns `state` from here: inside the loop it is
     // mutated by `applyMoveInSearch` alone (the forced answers included), so
     // a settled mark made in the loop can be trusted. One inherited from the
@@ -1956,19 +1942,11 @@ export function rollout(
             break;
         }
 
-        // Turn-boundary horizon. Under a root-clock variant, the iteration's
-        // tracker decides (`pastRootHorizon`). In production, a fresh bot-turn
-        // START is the active player being the bot right after a turn
-        // crossing (not the bot turn the rollout began in): stop once we've
-        // reached enough of them.
-        const turnChanged = state.turn !== lastTurn;
+        // Turn-boundary horizon on the root's clock: the iteration's tracker
+        // decides (`pastRootHorizon`), so a rollout that starts at or past
+        // the boundary scores at once.
         lastTurn = state.turn;
-        if (horizon) {
-            if (pastRootHorizon(horizon, state, botId)) break;
-        } else if (turnChanged && state.activePlayerId === botId) {
-            botTurnStarts += 1;
-            if (botTurnStarts > ROLLOUT_EXTRA_BOT_TURNS) break;
-        }
+        if (pastRootHorizon(horizon, state, botId)) break;
         // Stall cap: the bot's turn never recurs (e.g. it lost priority forever
         // on a degenerate board) — score wherever we got to.
         if (state.turn - startTurn >= MAX_ROLLOUT_TURNS) break;
@@ -1976,7 +1954,7 @@ export function rollout(
         const pid = advanceToDecision(state);
         if (!pid) break;
         // A forced answer can carry the state onto the root-clock boundary.
-        if (horizon && pastRootHorizon(horizon, state, botId)) break;
+        if (pastRootHorizon(horizon, state, botId)) break;
         // A forced answer can cross a turn boundary (the cleanup discard, CR
         // 514.1): run the horizon checks above on the new turn first.
         if (state.turn !== lastTurn) continue;
@@ -4463,7 +4441,6 @@ export function iterate(
     openRootByPolicy = false,
     unlockingRootKeys?: ReadonlySet<string>,
     deadline?: RolloutDeadline,
-    rolloutHorizon: RolloutHorizon | null = null,
     forcedGuide: ResolvedForcedGuide | null = null
 ): void {
     const world = determinize(
@@ -4476,20 +4453,20 @@ export function iterate(
     const since = gameClockOf(rootState);
     const path: Edge[] = [];
     let node = root;
-    // The root-clock horizon (issue #10816): one tracker for the iteration,
-    // fed the tree's states in play order and then its rollout's. A line
-    // that reached the boundary is a leaf, scored where every other
-    // candidate's rollout stops, never expanded further.
-    const horizon = rootHorizonTracker(rolloutHorizon, rootState.turn);
+    // The root-clock horizon (ADR 0015): one tracker for the iteration, fed
+    // the tree's states in play order and then its rollout's. A line that
+    // reached the boundary is a leaf, scored where every other candidate's
+    // rollout stops, never expanded further.
+    const horizon = rootHorizonTracker(rootState.turn);
     // The forced guide's Line (ADR 0186), one cursor per iteration, at the
     // root's decision of the Line. `undefined` in production.
     const line = lineTrackFor(forcedGuide);
 
     for (let depth = 0; depth < MAX_TREE_DEPTH; depth++) {
-        if (horizon && pastRootHorizon(horizon, world, botId)) break;
+        if (pastRootHorizon(horizon, world, botId)) break;
         const pid = advanceToDecision(world);
         if (!pid) break;
-        if (horizon && pastRootHorizon(horizon, world, botId)) break;
+        if (pastRootHorizon(horizon, world, botId)) break;
         let keyed = withoutDominatedTriggerTargets(
             node,
             world,
@@ -5643,7 +5620,7 @@ export function makeBlockDeltaLens(
 
 // --- Extra-turn structural credit (issue #244) -----------------------------
 // An extra turn's value is "washed out" of the rollout: ADR 0015 terminates
-// each rollout at the START of the bot's next turn, and the `extraTurns` queue
+// each rollout at the bot's next precombat main phase, and the `extraTurns` queue
 // (CR 500.7) is popped at that very turn crossing (phases.ts) — so the granted
 // turn is never played out, and a leaf-eval term keyed on `extraTurns` would
 // read an already-emptied queue. The value therefore never reaches the root
@@ -9044,7 +9021,6 @@ export function createPonderSearch(
     const weights = resolveEvalWeights(getSearchVariant());
     const actionPriors = resolveActionPriors(getSearchVariant());
     const opponentModel = resolveOpponentModel(getSearchVariant());
-    const rolloutHorizon = resolveRolloutHorizon(getSearchVariant());
     const deckColors =
         opponentModel === "blind"
             ? undefined
@@ -9074,8 +9050,7 @@ export function createPonderSearch(
                         opponentModel,
                         false,
                         undefined,
-                        undefined,
-                        rolloutHorizon
+                        undefined
                     );
                     i++;
                     if (stop?.()) break;
@@ -9180,10 +9155,6 @@ function runSearchWithTrace(
     // reason: `selectRootMove` takes the set as an argument rather than
     // reading the module-global itself. Empty outside a run that asks.
     const disabledRootRules = resolveDisabledRootRules(getSearchVariant());
-    // Where a rollout stops (issue #10816). Same one place, same reason:
-    // `iterate` takes it as an argument and builds each iteration's tracker.
-    // `null` outside a variant run — the production horizon.
-    const rolloutHorizon = resolveRolloutHorizon(getSearchVariant());
     // The forced guide along a bound Line (ADR 0186). Same one place, same
     // reason. `null` outside a Line run under a forced-guide arm.
     const forcedGuide = resolveForcedGuide(getSearchVariant());
@@ -9343,7 +9314,6 @@ function runSearchWithTrace(
             openRootByPolicy,
             unlockingRootKeys,
             deadline,
-            rolloutHorizon,
             forcedGuide
         );
         i++;

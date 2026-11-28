@@ -212,15 +212,14 @@ the strongest creature attacking alone. A
 **truncated** rollout stops early and evaluates the position instead of
 playing to the end.
 
-<a id="horizon"></a>**Horizon** — where a rollout stops. Here: the start of
-the Bot's next turn (ADR 0015), capped at 6 turns. A payoff that only shows up
-beyond the horizon is invisible to the search — one of the named causes of a
-[beyond-budget](#beyond-budget) position. Production reads it from where each
-rollout starts; the `horizon-b` [search variant](#search-variant) (off by
-default, PRD issue #10815) reads it on the search ROOT's clock instead — the
-precombat main phase of the first turn after the root's on which the Bot is
-active — and the tree stops descending there too, so every candidate is scored
-at the same game-clock point.
+<a id="horizon"></a>**Horizon** — where a rollout stops. Here: the precombat
+main phase of the first turn after the search ROOT's on which the Bot is
+active (ADR 0015, Amendment I), capped at 6 turns. It is measured on the
+root's clock, never from where a rollout happens to start, and the tree stops
+descending there too, so every candidate is scored at the same game-clock
+point. A payoff that only shows up beyond the horizon is invisible to the
+search — one of the named causes of a [beyond-budget](#beyond-budget)
+position.
 
 <a id="leaf"></a>**Leaf** — the position at the end of an iteration, where the
 rollout stopped. It is scored by the [evaluation](#evaluation); that score,

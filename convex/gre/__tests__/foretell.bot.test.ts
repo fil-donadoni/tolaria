@@ -26,7 +26,8 @@ import {
     SPECIAL_ACTION_MOVE_KINDS,
 } from "../moves";
 import { applyMoveForSearch } from "../applyMove";
-import { applyMoveInSearch, search } from "../search";
+import { applyMoveInSearch, search, searchWithTrace } from "../search";
+import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
 import { evaluateBreakdown } from "../evaluate";
 import { legalActions } from "../legalActions";
 import { applyForetell } from "../foretell";
@@ -197,17 +198,25 @@ describe("foretell — the Bot wants to foretell with spare mana (issue #2096)",
         }
     );
 
+    // In its upkeep the main phase is still ahead: foretelling now and
+    // leaving it to a later window of the turn reach the same position, so
+    // the search must read them as a tie (inside `outcomeEps`), never prefer
+    // the upkeep foretell. Which side of the tie the margin picks is rollout
+    // noise on the root clock (ADR 0015 Amendment I).
     it.each([1, 2, 3])(
-        "in its upkeep the tie is left to a later window of the turn (seed %i)",
+        "in its upkeep foretelling now ties with a later window of the turn (seed %i)",
         (seed) => {
-            expect(
-                search(
-                    board({ phase: "UPKEEP" }),
-                    "p1",
-                    { iterations: 200 },
-                    seed
-                )
-            ).toEqual({ kind: "pass" });
+            const { trace } = searchWithTrace(
+                board({ phase: "UPKEEP" }),
+                "p1",
+                { iterations: 200 },
+                seed
+            );
+            const reward = (kind: string) =>
+                trace!.candidates.find((c) => c.move.kind === kind)!.meanReward;
+            expect(Math.abs(reward("foretell") - reward("pass"))).toBeLessThan(
+                DEFAULT_EVAL_WEIGHTS.outcomeEps
+            );
         }
     );
 

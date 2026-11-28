@@ -12749,6 +12749,12 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // to 1200. So 200 was under this position's convergence threshold all
         // along and the entry was passing on its seed selection; the refit
         // moved the noise, not the preference.
+        //
+        // 800 since the horizon moved to the search root's clock (ADR 0015
+        // Amendment I): both lines sit inside `outcomeEps` and the
+        // material tie-break settles every seed, which at 400 iterations
+        // misses on seeds 9 and 13 of the probe's twenty (18/20, the
+        // robustness audit NOISE-PINNED) and at 800 never does (20/20).
         label: "self-tap source: pays a {T} ability entirely from the OTHER lands",
         classification: { kind: "absolute" },
         spec: {
@@ -12772,7 +12778,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             libraryCount: 20,
         },
         bot: "me",
-        budget: { iterations: 400 },
+        budget: { iterations: 800 },
         seeds: [0xb1ade, 1, 2],
         tier: "must",
         expect: {
@@ -23135,7 +23141,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: { moves: [{ kind: "pass" }] },
-        note: "Issue #9095 — the twin of the saddle entry above. Both root moves sit past the reward clip, and `pass` carries eight attack declarations against the saddle's two Bronco ones. Before the Saturation Prior (`saturationPriorTerms`, `search.ts`) UCB1 spread `pass`'s visits evenly over the eight, the subtree mean margin averaged the full swing in with the empty attacks, and the bot saddled on every seed at 400, 1000 and 2000 iterations. The prior ranks a saturated attack declaration's children by one-ply policy value, so the visits deepen the full swing; `BLADE_VARIANT=no-saturation-prior` turns it off and reds this entry. The `reward-soft-tail` variant would red it too: under a tail nothing saturates, so the prior never fires.",
+        note: "Issue #9095 — the twin of the saddle entry above. Both root moves sit past the reward clip, and `pass` carries eight attack declarations against the saddle's two Bronco ones. Before the Saturation Prior (`saturationPriorTerms`, `search.ts`) UCB1 spread `pass`'s visits evenly over the eight, the subtree mean margin averaged the full swing in with the empty attacks, and the bot saddled on every seed at 400, 1000 and 2000 iterations. The prior ranks a saturated attack declaration's children by one-ply policy value, so the visits deepen the full swing; `BLADE_VARIANT=no-saturation-prior` turns it off: it red this entry until the horizon moved to the root's clock (ADR 0015 Amendment I), where the tree stops at the boundary and `pass` keeps the tie-break without the prior, by about half the margin (`saturationPrior.bot.test.ts`). The `reward-soft-tail` variant would red it too: under a tail nothing saturates, so the prior never fires.",
     },
     // CR 702.26a — a phasing creature comes back at its controller's next untap
     // step. Read as gone for good, the rollouts priced casting it below holding
