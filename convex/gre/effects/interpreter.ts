@@ -3819,14 +3819,17 @@ export const OP_EXECUTORS: {
     // announced target group (`ctx.targets`). The per-target split was chosen at
     // announcement and snapshotted onto the stack item's `targetAmounts`, which
     // the primitive reads; `total` (mirroring `divideAsChosen.total`) is the
-    // fallback cap. `"X"` / `"X+1"` resolve against the announced {X} (getX()).
+    // fallback cap. `"X"` / `"X+1"` resolve against the announced {X} (getX());
+    // a text-defined quantity is read through the target-bound reader.
     dealDamageDividedAsChosen(ctx, op) {
         const total =
             op.total === "X"
                 ? ctx.getX()
                 : op.total === "X+1"
                   ? ctx.getX() + 1
-                  : op.total;
+                  : typeof op.total === "object"
+                    ? evaluateTargetCountQuantity(ctx, op.total)
+                    : op.total;
         // CR 608.2b (issue #2985) — a slot the legality gate blanked is not
         // affected by this part of the effect; the split among the survivors
         // is unchanged (each entry keeps the amount announced against its own

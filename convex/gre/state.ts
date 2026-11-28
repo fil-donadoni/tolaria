@@ -1434,7 +1434,7 @@ export interface TargetCountAnnouncement {
  *  `SpellContext` over a synthetic stack item carrying the earlier picks as
  *  `targets`; the read is pure (a count touches no state). A source that is
  *  nowhere in the game reads 0. */
-function evaluateAnnouncedQuantity(
+export function evaluateAnnouncedQuantity(
     announcement: TargetCountAnnouncement,
     quantity: TargetCountQuantity,
     chosenX: number | undefined

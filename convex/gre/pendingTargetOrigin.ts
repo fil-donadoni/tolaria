@@ -41,11 +41,16 @@ import type {
 import {
     PENDING_TARGET_FILTER_KEYS,
     emitBecameTargetEvents,
+    evaluateAnnouncedQuantity,
     processPendingActionTriggers,
     raiseQueuedCopyRetarget,
     resolveTargetRequirementCount,
 } from "./state";
-import type { TargetRequirement, TargetSelection } from "../cards/types";
+import type {
+    DivideTotal,
+    TargetRequirement,
+    TargetSelection,
+} from "../cards/types";
 import { drainAutoPasses } from "./phases";
 import {
     landTriggerAnnouncementPriority,
@@ -184,17 +189,28 @@ export function pendingTargetCountMaxReached(
 
 /** Resolves a divide-as-you-choose total spec against the chosen / derived X
  *  (CR 601.2d / 120.4). `"X"` → X, `"X+1"` → X+1 (Meteor Shower), a number →
- *  the fixed total (Fiery Justice). A missing X is treated as 0. Never
- *  negative. Moved here from `game.ts` (issue #2870) because
+ *  the fixed total (Fiery Justice), a text-defined quantity → its count at
+ *  `announcement` (`undefined` without one). A missing X is treated as 0.
+ *  Never negative. Moved here from `game.ts` (issue #2870) because
  *  `announcedTargetCount` below — the count authority BOTH the announcing
  *  mutation and the Bot's Move enumerator read — needs it to apply CR 601.2d's
  *  cap, and a second copy in the enumerator is exactly the drift this module
  *  exists to prevent. */
 export function resolveDivideTotal(
-    spec: number | "X" | "X+1",
-    chosenX: number | undefined
-): number {
+    spec: DivideTotal,
+    chosenX: number | undefined,
+    announcement?: TargetCountAnnouncement
+): number | undefined {
     if (typeof spec === "number") return Math.max(0, spec);
+    // CR 601.2d — a text-defined budget ("where X is the number of lands you
+    // control") is read off the board as the division is announced. With no
+    // announcement in hand it is not known yet, so the budget stays open —
+    // the same rule a text-defined target bound follows.
+    if (typeof spec === "object") {
+        return announcement
+            ? evaluateAnnouncedQuantity(announcement, spec, chosenX)
+            : undefined;
+    }
     const x = chosenX ?? 0;
     return Math.max(0, spec === "X+1" ? x + 1 : x);
 }
@@ -240,7 +256,11 @@ export function announcedTargetCount(
     // CR 601.2d / 120.4 — the divide budget caps the target count (each target
     // must receive at least 1 point), and a zero budget means no targets.
     const divideTotal = req.divideAsChosen
-        ? resolveDivideTotal(req.divideAsChosen.total, chosenX)
+        ? resolveDivideTotal(
+              req.divideAsChosen.total,
+              chosenX,
+              options.announcement
+          )
         : undefined;
     // Resolve BEFORE the zero-budget return, not after: `requireX: true` makes
     // an X-bearing count with no announced X a rejection, and returning early on
