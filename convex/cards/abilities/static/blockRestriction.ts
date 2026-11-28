@@ -25,7 +25,8 @@ import type {
  * the live `CardInstanceState` (typed as `PermanentView`), whose
  * `staticAbilities` the layer system maintains — so a granted flying counts and
  * a removed one does not (CR 613.1f). A colour
- * is the effective one (CR 613.1e, layer 5), so a creature turned blue matches.
+ * is the effective one (CR 613.1e, layer 5), so a creature turned blue matches;
+ * a power is the one the caller enriched onto the view (CR 613.4, layer 7).
  */
 export function matchesCombatCounterpart(
     filter: CombatCounterpartFilter,
@@ -33,6 +34,16 @@ export function matchesCombatCounterpart(
 ): boolean {
     if ("color" in filter)
         return getEffectiveColors(other).includes(filter.color);
+    if ("power" in filter) {
+        // CR 208.1 — `other.power` is the effective value the caller enriched
+        // (CR 613.4); a view without one reads as 0, as the closures did.
+        const power = other.power ?? 0;
+        const { min, max } = filter.power;
+        return (
+            (min === undefined || power >= min) &&
+            (max === undefined || power <= max)
+        );
+    }
     const keywords =
         (other as { staticAbilities?: readonly string[] }).staticAbilities ??
         [];

@@ -10646,7 +10646,14 @@ export type CombatCounterpartFilter =
     /** CR 702.9 — the other creature has this keyword. */
     | { readonly keyword: "flying" }
     /** CR 105.2 — the other creature is this color (effective, layer 5). */
-    | { readonly color: Color };
+    | { readonly color: Color }
+    /** CR 208.1 — the other creature's power lies within these inclusive
+     *  bounds ("creatures with power 2 or less" = `{ max: 2 }`, "power 2 or
+     *  greater" = `{ min: 2 }`), read as its EFFECTIVE power (CR 613.4, layer
+     *  7): the combat validator and the Brain's restriction pricing enrich
+     *  `power` before asking. Same inclusive shape as a target's
+     *  `powerFilter`. */
+    | { readonly power: { readonly min?: number; readonly max?: number } };
 
 /** Card-level attack restriction (CR 508.1c). Declares that a creature
  *  cannot attack unless a condition on the defending player's battlefield
