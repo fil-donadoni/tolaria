@@ -2768,6 +2768,20 @@ function isLookDistributeKeepTo(value: unknown): boolean {
     );
 }
 
+/** The `otherwise` fallback keep of a `lookDistribute` Op — `{ keepTo,
+ *  prompt? }` and nothing else ("If you don't, put a card from among them
+ *  into your hand"). */
+function isLookDistributeOtherwise(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value))
+        return false;
+    const entry = value as Record<string, unknown>;
+    return (
+        Object.keys(entry).every((k) => k === "keepTo" || k === "prompt") &&
+        isLookDistributeKeepTo(entry.keepTo) &&
+        (entry.prompt === undefined || isNonEmptyString(entry.prompt))
+    );
+}
+
 /** The `categories` list of a `revealAndCategorize` Op (issue #1364, Atraxa):
  *  a NON-EMPTY ordered array of `{ label, filter }` pairs and nothing else —
  *  `label` a non-empty display string (what the picker shows above the
@@ -6552,6 +6566,11 @@ const OP_SCHEMAS: OpSchemaTable = {
             // CR 701.20a — public reveal of the looked-at window ("window") or
             // only the kept cards ("kept"); omit for a private look (CR 401.4).
             reveal: isRevealScope,
+            // CR 110.5b — the battlefield keep enters tapped.
+            tapped: isBoolean,
+            // CR 608.2c — "If you don't, put a card from among them into
+            // your hand": the fallback keep over the same window.
+            otherwise: isLookDistributeOtherwise,
         },
         check: (entry) => {
             const errors: string[] = [];
@@ -6559,6 +6578,23 @@ const OP_SCHEMAS: OpSchemaTable = {
                 errors.push(
                     'field "counters" is only valid with destination: "exile" (issue #1570)'
                 );
+            }
+            if ("tapped" in entry && entry.keepTo !== "battlefield") {
+                errors.push(
+                    'field "tapped" is only valid with keepTo: "battlefield"'
+                );
+            }
+            if ("otherwise" in entry) {
+                if (entry.optional !== true) {
+                    errors.push(
+                        'field "otherwise" needs optional: true (a mandatory keep never reaches it)'
+                    );
+                }
+                if ("bind" in entry || "reveal" in entry) {
+                    errors.push(
+                        'field "otherwise" cannot be combined with "bind" or "reveal"'
+                    );
+                }
             }
             return errors;
         },
