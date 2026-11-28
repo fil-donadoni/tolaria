@@ -1336,7 +1336,8 @@ export function announcedSlots(
  */
 export function targetRequirementFromDescriptor(
     descriptor: DescriptorIR,
-    count: TargetRequirement["count"] = 1
+    count: TargetRequirement["count"] = 1,
+    colorsAreAlternatives = false
 ): RuleResult<TargetRequirement> {
     // CR 601.2c — the descriptor's NUMBER and the head's count are one fact
     // printed twice ("up to TWO target creature CARDS"), so they are checked
@@ -1449,13 +1450,20 @@ export function targetRequirementFromDescriptor(
         requirement.excludeTypes = [...descriptor.excludeTypes];
     if (descriptor.excludeSubtypes)
         requirement.excludeSubtypes = [...descriptor.excludeSubtypes];
+    // CR 105.1 + CR 105.2 — "target white or black creature": an object that
+    // is AT LEAST ONE of the printed colours, `colorFilterAny`'s OR. The
+    // descriptor does not record whether several colours were a printed "or"
+    // or stacked adjectives (an AND), so the CALLER vouches for the
+    // disjunction (`colorsAreAlternatives`); without it several colours refuse.
     if (descriptor.colors) {
-        if (descriptor.colors.length > 1)
-            return fail(
-                "multi-colour target filters are not in grammar v0",
-                "colors"
-            );
-        requirement.colorFilter = descriptor.colors[0];
+        if (descriptor.colors.length > 1) {
+            if (!colorsAreAlternatives)
+                return fail(
+                    'several colours on a target filter need a printed "or"',
+                    "colors"
+                );
+            requirement.colorFilterAny = [...descriptor.colors];
+        } else requirement.colorFilter = descriptor.colors[0];
     }
     if (descriptor.excludeColors)
         requirement.excludeColors = [...descriptor.excludeColors];
@@ -2327,14 +2335,26 @@ export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
             if (!descriptor.ok) return descriptor;
             return targetRequirementFromDescriptor(descriptor.value, 2);
         }
+        // CR 115.1 + CR 120.3 — "target player or planeswalker": the two
+        // recipients damage can be dealt to by a burn effect, one announced
+        // target of either kind. Read by exact spelling: the descriptor has no
+        // player-OR-object noun, and the requirement's type list is the whole
+        // of it (no object facet to carry).
+        if (span === "target player or planeswalker")
+            return ok({
+                type: ["player", "Planeswalker"],
+                count: 1,
+            } as TargetRequirement);
         if (!span.startsWith("target "))
             return fail('a target filter starts with "target "', span);
-        const descriptor = targetDescriptorRule.run(
-            span.slice("target ".length),
-            ctx
-        );
+        const noun = span.slice("target ".length);
+        const descriptor = targetDescriptorRule.run(noun, ctx);
         if (!descriptor.ok) return descriptor;
-        return targetRequirementFromDescriptor(descriptor.value);
+        return targetRequirementFromDescriptor(
+            descriptor.value,
+            1,
+            COLOR_OR_LIST.test(noun)
+        );
     })
 );
 

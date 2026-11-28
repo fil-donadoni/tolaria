@@ -1371,6 +1371,11 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › target filter › object descriptor › player or planeswalker",
+            "issue": 4589
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › target filter › object descriptor › player's graveyard",
             "issue": 4556
         },
@@ -2441,6 +2446,11 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › number of set › object descriptor › basic land types among lands you control",
+            "issue": 4589
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › target filter › colors",
             "issue": 4589
         },
@@ -2498,6 +2508,11 @@
             "kind": "grammar",
             "key": "spell › effect clause › target filter › object descriptor › noncreature spell",
             "issue": 8687
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › target filter › object descriptor › player or planeswalker",
+            "issue": 4589
         },
         {
             "kind": "grammar",
