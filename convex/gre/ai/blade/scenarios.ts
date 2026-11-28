@@ -12749,6 +12749,12 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // to 1200. So 200 was under this position's convergence threshold all
         // along and the entry was passing on its seed selection; the refit
         // moved the noise, not the preference.
+        //
+        // 800 since the horizon moved to the search root's clock (ADR 0015
+        // Amendment I): both lines sit inside `outcomeEps` and the
+        // material tie-break settles every seed, which at 400 iterations
+        // misses on seeds 9 and 13 of the probe's twenty (18/20, the
+        // robustness audit NOISE-PINNED) and at 800 never does (20/20).
         label: "self-tap source: pays a {T} ability entirely from the OTHER lands",
         classification: { kind: "absolute" },
         spec: {
@@ -12772,7 +12778,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             libraryCount: 20,
         },
         bot: "me",
-        budget: { iterations: 400 },
+        budget: { iterations: 800 },
         seeds: [0xb1ade, 1, 2],
         tier: "must",
         expect: {
