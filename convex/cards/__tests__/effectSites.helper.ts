@@ -29,6 +29,10 @@ export function abilitySites(card: CardDefinition): {
          *  in `validateAbilityEffectScript` sees the field it validates rather
          *  than relying on it riding along untyped (issue #2461). */
         modes?: unknown;
+        /** Issue #10978 — the announced groups the battlefield `moveZone`
+         *  gate in `validateAbilityEffectScript` maps slots onto. */
+        targetRequirement?: unknown;
+        additionalTargetRequirements?: unknown;
     };
     label: string;
     triggerEventType?: string | readonly string[];
@@ -85,6 +89,10 @@ export function abilitySites(card: CardDefinition): {
                 id: `${ability.id}#${mode.id}`,
                 effects: mode.effects,
                 resolve: mode.resolve,
+                // CR 601.2c — the chosen mode's own requirement drives
+                // targeting (issue #10978: read by the battlefield `moveZone`
+                // gate). An ability mode declares one group only.
+                targetRequirement: mode.targetRequirement,
             },
             label,
         }))
@@ -116,6 +124,9 @@ export function modeSites(card: CardDefinition): {
                 resolveSteps: undefined,
                 effect: undefined,
                 modes: undefined,
+                // CR 601.2c — only the chosen mode's groups are announced.
+                targetRequirement: mode.targetRequirement,
+                additionalTargetRequirements: mode.additionalTargetRequirements,
             } as CardDefinition,
             label: `${card.name} (${card.id}) mode "${mode.id}"`,
             effects: mode.effects,
