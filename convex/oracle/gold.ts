@@ -873,6 +873,7 @@ const TRIGGER_HEAD_EVENT: Record<CompiledTriggerHead["kind"], GameEventType> = {
     "library-searched": "LIBRARY_SEARCHED",
     "gift-given": "GIFT_GIVEN",
     expend: "MANA_EXPENDED",
+    foraged: "FORAGED",
     "life-gained": "LIFE_GAINED",
     // CR 603.2 — two events; the pairing key names the first member.
     "life-gained-or-lost": "LIFE_GAINED",

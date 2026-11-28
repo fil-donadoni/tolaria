@@ -45,6 +45,7 @@ const DECLARATIONS = [
     "divideIntoPiles.otherBind:list@otherEffect",
     "exile.bind:snapshot",
     "exileTopOfLibrary.bindAll:picks",
+    "forage.bind:boolean",
     "lookDistribute.bind:snapshot",
     "loseLife.bindLost:number",
     "mayPay.bind:boolean",

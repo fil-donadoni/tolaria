@@ -2020,6 +2020,18 @@ const mayPay: Valuer<"mayPay"> = () => {
     return ZERO_OP_VALUE;
 };
 
+const forage: Valuer<"forage"> = () => {
+    // CR 701.61a — forage is a COST the forager pays out of their own
+    // graveyard or Food, choosing the half and (for "you may") whether to pay
+    // at all; its consequence is the `if` arm reading the `$foraged` binding,
+    // valued by that arm's own Ops exactly as `mayPay`'s is. A context-free
+    // walker cannot tell which half the board makes cheaper, and neither
+    // graveyard cards nor a Food token is a term the feature basis prices, so
+    // the node is an explicit ZERO on the record, not the forgotten-Op
+    // fallback.
+    return ZERO_OP_VALUE;
+};
+
 const payVariableMana: Valuer<"payVariableMana"> = () => {
     // CR 107.3f (issue #1701) — the amount is the PLAYER's to nominate, and its
     // floor is 0 (nominating 0 is the decline). A context-free walker has no
@@ -3776,6 +3788,7 @@ export const OP_VALUERS: {
     copyResolvingSpell,
     copySpell,
     mayPay,
+    forage,
     payVariableMana,
     chooseNumber,
     coinFlipSeries,
@@ -4322,6 +4335,11 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // some of its kinds bind a COERCED pick, which is a sign — see
     // `opBeneficence` below.
     mayPay: "neutral",
+    // CR 701.61a — `forage` is the forager's own cost, out of their own
+    // graveyard or Food, and binds the boolean its sibling `if` reads: the
+    // stake is that arm's, and the Op itself has no recipient a redirect could
+    // move — it always acts on the player who chose to forage.
+    forage: "neutral",
     // CR 107.3f (issue #1701) — same shape as `mayPay` above, one step further:
     // it binds a NUMBER, and its consequence is entirely the sibling Op that
     // reads the binding back (`bind` is required for exactly that reason). What

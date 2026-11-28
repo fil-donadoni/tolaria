@@ -8130,6 +8130,9 @@ export interface SpellContext {
      *  `collectedChoices` (serialized across suspend/replay, cleared on
      *  completion). */
     noteChoice: (choiceId: string, values: string[]) => void;
+    /** CR 701.61a — queue `FORAGED` for `playerId`, who has just foraged
+     *  (the `forage` Op, after the chosen half was performed). */
+    noteForaged: (playerId: string) => void;
 
     /** CR 608.2h / 400.7 (issue #2384) — persists a binding row onto the
      *  RESOLVING SOURCE permanent's own instance state, OUTLIVING this
@@ -12953,7 +12956,8 @@ export type GameEventType =
     | "PERMANENT_BECAME_MONSTROUS"
     | "MIRACLE_REVEALED"
     | "GIFT_GIVEN"
-    | "MANA_EXPENDED";
+    | "MANA_EXPENDED"
+    | "FORAGED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -14359,6 +14363,16 @@ export interface ManaExpendedEvent {
     total: number;
 }
 
+/** CR 701.61a — a player foraged: exiled three cards from their graveyard or
+ *  sacrificed a Food. Queued by the `forage` Op once the chosen half is
+ *  performed (`SpellContext.noteForaged`); read by `foragedTrigger`
+ *  ("Whenever you forage"). */
+export interface ForagedEvent {
+    type: "FORAGED";
+    /** The player who foraged. */
+    playerId: string;
+}
+
 export type GameEvent =
     | DamageDealtEvent
     | DamagePreventedEvent
@@ -14402,7 +14416,8 @@ export type GameEvent =
     | LibrarySearchedEvent
     | MiracleRevealedEvent
     | GiftGivenEvent
-    | ManaExpendedEvent;
+    | ManaExpendedEvent
+    | ForagedEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can
@@ -22830,6 +22845,41 @@ export type EffectOp =
           prompt: string;
           /** REQUIRED — the boolean binding name (`"$paid"`). A may-pay whose
            *  outcome nothing reads is meaningless, so the grammar demands it. */
+          bind: string;
+      }
+    /** CR 701.61a — FORAGE: "Exile three cards from your graveyard or
+     *  sacrifice a Food." A keyword ACTION written into an effect ("When this
+     *  creature enters, you may forage. If you do, …"), so its own Op rather
+     *  than a `mayPay` over a cost leg: the forager chooses WHICH half to
+     *  perform, a disjunction no single `CostLegs` value says, and the action
+     *  is an event others watch ("Whenever you forage", `FORAGED`).
+     *
+     *  Built from shipped primitives only: an `option-pick`
+     *  (`requestOptionChoice`) names the half — only halves the player can
+     *  perform in full are offered (CR 118.3: three cards, never two; a Food
+     *  they control) — then a `choose-graveyard-card` pick of exactly three
+     *  cards moved to exile in ONE batch (`moveCardsById`, one exile
+     *  occurrence), or a `sacrifice-permanents` pick of one Food
+     *  (`sacrifice`). A half with exactly the cards it needs still asks which
+     *  half; a pick with no freedom (three cards, one Food) is made without a
+     *  prompt. Having foraged, the executor queues `FORAGED` through
+     *  `noteForaged`.
+     *
+     *  `optional` is "you may forage": a third option declines. A player who
+     *  can perform neither half cannot forage at all (CR 701.61a names the
+     *  only two ways), so nothing is asked and `bind` is false. `bind`
+     *  (REQUIRED) is a BOOLEAN binding, true only once the player foraged —
+     *  the evidence "If you do" and "When you do" read (CR 118.12, 603.12).
+     *
+     *  Not here: forage as an activation or additional COST (Thornvault
+     *  Forager, Feed the Cycle) — a cost surface, refused by the grammar. */
+    | {
+          op: "forage";
+          /** The forager; omitted = the resolving controller. */
+          player?: EffectPlayerRef;
+          /** "you may forage" — the forager may decline. */
+          optional?: true;
+          /** REQUIRED — the boolean binding (`"$foraged"`). */
           bind: string;
       }
     /** CR 107.3f (issue #1701) — a VARIABLE-amount mana payment whose amount

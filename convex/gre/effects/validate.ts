@@ -7380,6 +7380,19 @@ const OP_SCHEMAS: OpSchemaTable = {
     // or a bare cost-free "you may …" decision when `cost` is omitted (issue
     // #680 — Squee, Goblin Nabob). `bind` is REQUIRED: a may-pay whose
     // boolean outcome nothing reads is meaningless.
+    // CR 701.61a — forage: the player performs one of its two halves. `bind`
+    // is REQUIRED, the boolean "If you do" / "When you do" read; `optional`
+    // is "you may forage". The halves are fixed by the rule, so the Op takes
+    // no cost field.
+    forage: {
+        required: {
+            bind: bindingDeclaration("boolean"),
+        },
+        optional: {
+            player: isPlayerRef,
+            optional: (v: unknown) => v === true,
+        },
+    },
     mayPay: {
         required: {
             player: isPlayerRef,

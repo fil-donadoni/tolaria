@@ -75,6 +75,7 @@ import { entersOrLeavesTrigger } from "./abilities/triggers/entersOrLeavesTrigge
 import { librarySearchedTrigger } from "./abilities/triggers/librarySearchedTrigger";
 import { giftGivenTrigger } from "./abilities/triggers/giftGivenTrigger";
 import { expendTrigger } from "./abilities/triggers/expendTrigger";
+import { foragedTrigger } from "./abilities/triggers/foragedTrigger";
 import {
     type LifeChangeDirection,
     lifeChangedTrigger,
@@ -401,6 +402,8 @@ export type CompiledTriggerHead =
           readonly scope: "you";
           readonly amount: number;
       }
+    /** CR 701.61a — "whenever you forage" (`foragedTrigger`). */
+    | { readonly kind: "foraged"; readonly scope: "you" }
     /** CR 119.9 — "whenever you gain life" (`lifeChangedTrigger`). */
     | { readonly kind: "life-gained"; readonly scope: "you" }
     /** CR 119.3 + CR 603.2 — "whenever you gain or lose life during your
@@ -960,6 +963,8 @@ function resolveCompiledTriggerHead(
             return giftGivenTrigger({ ...common, scope: head.scope });
         case "expend":
             return expendTrigger({ ...common, amount: head.amount });
+        case "foraged":
+            return foragedTrigger(common);
         case "life-gained":
             return lifeChangedTrigger({
                 ...common,

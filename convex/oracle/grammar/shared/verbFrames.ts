@@ -590,6 +590,15 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 701.61a — "forage": the controller exiles three cards from
+           * their graveyard or sacrifices a Food. Only the bare keyword
+           * action is read, and it lowers only inside "you may forage"
+           * (`lowerOptionalForage`) — the one printed form.
+           */
+          readonly frame: "forage";
+      }
+    | {
+          /**
            * CR 104.2b — "you win the game": the controller wins through an
            * ability. Only the bare "you" subject is read; the gate ("if …",
            * "Then if …") is the enclosing clause's condition, never part of
@@ -1058,6 +1067,7 @@ export const VERB_FRAMES: readonly {
     { name: "empowerJace", opens: /^empower jace\b/i },
     { name: "becomeMonarch", opens: /^you become the monarch\b/i },
     { name: "manifestDread", opens: /^manifest dread\b/i },
+    { name: "forage", opens: /^forage\b/i },
     { name: "winGame", opens: /^you win the game\b/i },
     { name: "loseGame", opens: /^you lose the game\b/i },
     { name: "pay", opens: /^pay \{/i },
@@ -1268,6 +1278,8 @@ const LOSE_GAME = "you lose the game";
 const PAY_MANA = /^pay ((?:\{[^{}]+\})+)$/;
 /** CR 701.62a — the bare keyword action, nothing trailing. */
 const MANIFEST_DREAD = "manifest dread";
+/** CR 701.61a — the bare keyword action, nothing trailing. */
+const FORAGE = "forage";
 /** CR 701.37a — the keyword action and its count, nothing trailing. */
 const MONSTROSITY = /^monstrosity (\S+)$/;
 /** CR 701.46a — the keyword action and its count, nothing trailing. */
@@ -2812,6 +2824,13 @@ function readMember(
                 refused: `"${member}" — only the bare "Manifest dread" is read`,
             };
         return { frames: [{ frame: "manifestDread" }], referent };
+    }
+    if (opensFrame("forage", lower)) {
+        if (lower !== FORAGE)
+            return {
+                refused: `"${member}" — only the bare "Forage" is read`,
+            };
+        return { frames: [{ frame: "forage" }], referent };
     }
     if (opensFrame("winGame", lower)) {
         if (lower !== WIN_GAME)

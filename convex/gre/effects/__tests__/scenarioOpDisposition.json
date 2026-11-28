@@ -140,6 +140,10 @@
     },
     "fight": "runs",
     "forEach": "runs",
+    "forage": {
+        "code": "suspends-for-input",
+        "reason": "Op \"forage\" suspends for the half pick and the graveyard or Food pick — covered by the Op's interpreter tests"
+    },
     "gainControl": {
         "code": "op-own-tests",
         "reason": "Op \"gainControl\" changes control of a permanent (and installs a conditional-control SBA) — covered by the Op's interpreter tests"

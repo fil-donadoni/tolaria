@@ -152,6 +152,12 @@ import {
     LAND_SUBTYPES,
 } from "../../oracle/grammar/shared/subtypes";
 import { attachmentsLast } from "../umbraArmor";
+import {
+    FORAGE_EXILE_COUNT,
+    FORAGE_FOOD_FILTER,
+    FORAGE_HALF_LABEL,
+    openForageHalves,
+} from "../forage";
 import { announceResolveTimeCastTargets } from "./resolveTimeCastTargets";
 import {
     isSimultaneousPlayerMayPayBody,
@@ -570,6 +576,18 @@ const CASCADE_NO_HIT = "#none";
  *  `["yes"]` / `["no"]` array `requestMayPay` persists (mirroring the may-pay
  *  Pending Choice answer). Read by an `if` binding predicate. */
 const MAYPAY_YES = "yes";
+
+/** The declined / unpaid half of the boolean payload (see `MAYPAY_YES`),
+ *  written by an Op that decides its own boolean (`forage`). */
+const MAYPAY_NO = "no";
+
+/** `forage`'s three pick ids (CR 701.61a): which half, then the graveyard
+ *  cards or the Food. Folded with the Op's position by the request
+ *  primitives, like `OPTION_CHOICE_ID`; never `$`-bindings. */
+const FORAGE_HALF_ID = "forageHalf";
+const FORAGE_EXILE_ID = "forageExile";
+const FORAGE_SACRIFICE_ID = "forageSacrifice";
+const FORAGE_DECLINE = "decline";
 
 /** Reads a BOOLEAN binding (a `mayPay` outcome). Returns `undefined` when the
  *  binding was never captured (its Op was skipped — CR 608.2b), which the `if`
@@ -8017,6 +8035,96 @@ export const OP_EXECUTORS: {
             prompt: op.prompt,
         });
         if (paid === undefined) return "suspend"; // enqueued — wait
+    },
+    // CR 701.61a — forage: "Exile three cards from your graveyard or
+    // sacrifice a Food." Only a half the player can perform in full is
+    // offered (CR 118.3); none open = they cannot forage, nothing is asked.
+    // The half pick, then the card pick, each suspend; the Op re-runs on
+    // resume and reads the stored answers back, performing the half only once
+    // every answer is in, so nothing moves twice. Having foraged,
+    // `FORAGED` is queued and `bind` is true — the "If you do" evidence.
+    forage(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player ?? "controller");
+        if (playerId === undefined) return; // forager gone, skip
+        const graveyardIds = ctx.getGraveyardCards(playerId).map((c) => c.id);
+        const foodIds = ctx.getBattlefieldIds(playerId, FORAGE_FOOD_FILTER);
+        const halves = openForageHalves(graveyardIds.length, foodIds.length);
+        const options: string[] = [...halves];
+        if (op.optional && halves.length > 0) options.push(FORAGE_DECLINE);
+        if (options.length === 0) {
+            ctx.noteChoice(op.bind, [MAYPAY_NO]);
+            return;
+        }
+        const half =
+            options.length === 1
+                ? options[0]
+                : ctx.requestOptionChoice({
+                      playerId,
+                      choiceId: FORAGE_HALF_ID,
+                      options: options.map((id) => ({
+                          id,
+                          label:
+                              id === "exile" || id === "sacrifice"
+                                  ? FORAGE_HALF_LABEL[id]
+                                  : "Don't forage",
+                      })),
+                      prompt: "Forage: exile three cards from your graveyard or sacrifice a Food.",
+                  });
+        if (half === undefined) return "suspend"; // enqueued — wait
+        if (half === "exile") {
+            // A graveyard of exactly three leaves nothing to choose.
+            const picks =
+                graveyardIds.length === FORAGE_EXILE_COUNT
+                    ? graveyardIds
+                    : ctx.requestChoice({
+                          playerId,
+                          choiceId: FORAGE_EXILE_ID,
+                          kind: "choose-graveyard-card",
+                          zone: "graveyard",
+                          count: FORAGE_EXILE_COUNT,
+                          candidateIds: graveyardIds,
+                          prompt: "Exile three cards from your graveyard.",
+                      });
+            if (picks === undefined) return "suspend"; // enqueued — wait
+            // One instruction, one exile occurrence (`moveCardsById`); a
+            // half not performed in full is no forage (CR 118.3).
+            const moved = ctx.moveCardsById(
+                playerId,
+                picks,
+                "graveyard",
+                "exile"
+            );
+            if (moved.length < FORAGE_EXILE_COUNT) {
+                ctx.noteChoice(op.bind, [MAYPAY_NO]);
+                return;
+            }
+        } else if (half === "sacrifice") {
+            const picks =
+                foodIds.length === 1
+                    ? foodIds
+                    : ctx.requestChoice({
+                          playerId,
+                          choiceId: FORAGE_SACRIFICE_ID,
+                          kind: "sacrifice-permanents",
+                          zone: "battlefield",
+                          filter: FORAGE_FOOD_FILTER,
+                          count: 1,
+                          candidateIds: foodIds,
+                          prompt: "Sacrifice a Food.",
+                      });
+            if (picks === undefined) return "suspend"; // enqueued — wait
+            // An answer that names no Food sacrifices nothing: no forage.
+            if (picks.length === 0) {
+                ctx.noteChoice(op.bind, [MAYPAY_NO]);
+                return;
+            }
+            for (let i = 0; i < picks.length; i++) ctx.sacrifice(picks[i]);
+        } else {
+            ctx.noteChoice(op.bind, [MAYPAY_NO]);
+            return;
+        }
+        ctx.noteForaged(playerId);
+        ctx.noteChoice(op.bind, [MAYPAY_YES]);
     },
     // CR 107.3f (issue #1701) — a VARIABLE-amount mana payment. First execution
     // enqueues the `number-pick` choice and SUSPENDS; the resumed execution
