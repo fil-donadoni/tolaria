@@ -1,14 +1,17 @@
-// A may-pay graveyard leg is not a choice the candidate set offers (issue
-// #10855): `choiceCandidates.ts` ranks the graveyard by the fitted card worth
+// A may-pay graveyard or discard leg is not a choice the candidate set offers
+// (issue #10855): `choiceCandidates.ts` ranks each by the fitted card worth
 // and emits ONE accept, so a verdict judged "pay or not", never which cards.
 // A refit can rank another set, and the recorded key then names cards the
 // rebuilt position no longer offers as a whole. The judgement stands: the key
-// resolves to the one accept with the same other legs and the same leg size
-// (CR 118.3 / 118.12 — the cost is paid with any cards that cover it). A key
-// whose leg size the position cannot answer still reads as stale.
+// resolves to the one accept with the same other legs and the same leg sizes.
+// A key whose leg size the position cannot answer still reads as stale.
 
 import { describe, expect, it } from "vitest";
-import { makePlayer, makeState } from "../../../cards/__tests__/setup.helper";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../cards/__tests__/setup.helper";
 import { moveKey } from "../../search";
 import type { GameState } from "../../state";
 import {
@@ -108,5 +111,75 @@ describe("resolveVerdictMoves — a may-pay graveyard set the refit re-ranked (i
         expect(resolved).toEqual({
             error: "candidate no longer enumerated on the rebuilt position: candidate 0",
         });
+    });
+});
+
+/** A pending discard-one may-pay over two DIFFERENT hand cards. */
+function discardOfferState(): GameState {
+    const state = makeState({
+        players: [
+            makePlayer("p1", {
+                hand: [GRAVEYARD_LEG_FOREST_ID, GRAVEYARD_LEG_NONBASIC_ID].map(
+                    (cardId, i) =>
+                        makeInstance(cardId, {
+                            id: `hand-${i}`,
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        })
+                ),
+            }),
+            makePlayer("p2"),
+        ],
+        priorityPlayerId: "p1",
+        activePlayerId: "p1",
+    });
+    state.pendingChoices = [
+        {
+            stackItemId: "stack-1",
+            step: 0,
+            choiceId: "c1",
+            playerId: "p1",
+            kind: "may-pay",
+            cost: {
+                hand: {
+                    action: "discard",
+                    requirements: [{ filter: {}, count: 1 }],
+                },
+            },
+            count: 1,
+            prompt: "Discard a card?",
+        },
+    ];
+    return state;
+}
+
+describe("resolveVerdictMoves — a may-pay discard set the refit re-ranked (issue #10855)", () => {
+    const state = discardOfferState();
+    const offered = candidateMoves(state, "p1");
+    const accept = offered.find((m) => m.kind === "may-pay" && m.accept);
+    const chosen = accept?.kind === "may-pay" ? (accept.discardIds ?? []) : [];
+
+    it("is a position offering exactly one one-card discard accept", () => {
+        expect(chosen).toHaveLength(1);
+    });
+
+    it("resolves an accept naming the other hand card onto the offered one", () => {
+        const other = ["hand-0", "hand-1"].filter((id) => !chosen.includes(id));
+        const stale = JSON.stringify({
+            kind: "may-pay",
+            accept: true,
+            discardIds: other,
+        });
+        expect(offered.map(moveKey)).not.toContain(stale);
+        const resolved = resolveVerdictMoves(
+            verdictOver([stale, DECLINE]),
+            state,
+            "p1"
+        );
+        expect("moves" in resolved && resolved.moves.map(moveKey)).toEqual([
+            moveKey(accept!),
+            DECLINE,
+        ]);
     });
 });
