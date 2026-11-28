@@ -13,7 +13,11 @@
 // `search.ts` or `applyMove.ts`, so the dominance probe (which `moves.ts`
 // imports at runtime) can share it without closing an import cycle.
 
-import type { CardDefinition, ManaCost } from "../cards/types";
+import type {
+    ActivatedAbility,
+    CardDefinition,
+    ManaCost,
+} from "../cards/types";
 import type { CardInstanceState, GameState } from "./state";
 import {
     applyCostModifiers,
@@ -32,7 +36,7 @@ import {
     manaGateBattlefields,
     manaTapCounterCost,
     manaTapExertsSource,
-    manaTapSacrificesSource,
+    manaTapSacrificingAbility,
     mayBeSacrificedForMana,
     manaTapExhaustAbility,
     mayExertForMana,
@@ -51,6 +55,29 @@ export type SearchTapPlanEntry = {
     manaChoiceIndex?: number;
     tapOtherIds?: string[];
 };
+
+/** The mana ability a tap plan entry activates when paying it SACRIFICES the
+ *  source (CR 605.1a — Black Lotus, Lotus Petal, a Treasure), else null. The
+ *  ONE reading of "this entry sacrifices", shared by the coarse payment below
+ *  and by the dominance probe, which must forgive exactly the sources this
+ *  payment moves to the graveyard (`ai/dominance.ts`, issue #10830). An
+ *  `abilityId` entry (a tap-other activation) never sacrifices its source here.
+ *  Behind the cheap printed-definition prefilter, so an ordinary board pays
+ *  one cached lookup per tap. */
+export function searchTapSacrificingAbility(
+    state: GameState,
+    playerId: string,
+    src: CardInstanceState,
+    tap: SearchTapPlanEntry
+): ActivatedAbility | null {
+    if (tap.abilityId || !mayBeSacrificedForMana(src)) return null;
+    return manaTapSacrificingAbility(
+        src,
+        playerId,
+        manaGateBattlefields(state),
+        tap.manaChoiceIndex
+    );
+}
 
 /** Tap the planned mana sources in place. Coarse model: a source listed in the
  *  tap plan is marked tapped so the resulting position reflects the spent mana;
@@ -125,15 +152,7 @@ export function applyTapPlanInSearch(
         }
         const src = player.battlefield.find((c) => c.id === tap.cardInstanceId);
         if (!src) continue;
-        if (
-            mayBeSacrificedForMana(src) &&
-            manaTapSacrificesSource(
-                src,
-                player.id,
-                manaGateBattlefields(state),
-                tap.manaChoiceIndex
-            )
-        ) {
+        if (searchTapSacrificingAbility(state, player.id, src, tap)) {
             sacrificed.push(src.id);
             continue;
         }

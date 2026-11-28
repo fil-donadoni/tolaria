@@ -2641,6 +2641,32 @@ export function manaTapSacrificesSource(
         | undefined,
     manaChoiceIndex: number | undefined
 ): boolean {
+    return (
+        manaTapSacrificingAbility(
+            card,
+            controllerId,
+            battlefields,
+            manaChoiceIndex
+        ) !== null
+    );
+}
+
+/** The mana ability this tap plan entry activates when it SACRIFICES its
+ *  source, else null — {@link manaTapSacrificesSource} with the ability
+ *  handed back, for a caller that must also read the rest of its cost and
+ *  riders (the dominance probe's spent-cost reading, `gre/ai/dominance.ts`).
+ *  Same option list, same index rule, same `mayBeSacrificedForMana` guard. */
+export function manaTapSacrificingAbility(
+    card: CardInstanceState,
+    controllerId: string | undefined,
+    battlefields:
+        | ReadonlyArray<{
+              playerId: string;
+              battlefield: readonly CardInstanceState[];
+          }>
+        | undefined,
+    manaChoiceIndex: number | undefined
+): ActivatedAbility | null {
     const detailed = getManaTapOptionsDetailed(
         card,
         controllerId,
@@ -2653,9 +2679,9 @@ export function manaTapSacrificesSource(
     // A plan with no index taps a single-option source (`manaTapNeedsChoice`),
     // so index 0 is the option it names.
     const opt = detailed[manaChoiceIndex ?? 0];
-    if (!opt || opt.source.kind !== "activated") return false;
+    if (!opt || opt.source.kind !== "activated") return null;
     const abilityId = opt.source.abilityId;
-    return getEffectiveActivatedAbilities(card).some(({ ability }) => {
+    const found = getEffectiveActivatedAbilities(card).find(({ ability }) => {
         if (ability.id !== abilityId) return false;
         if (ability.cost.sacrifice) return true;
         // CR 118.3 / 701.21 — a depletion land sacrifices itself only on the
@@ -2670,6 +2696,7 @@ export function manaTapSacrificesSource(
         const spent = leg && leg.type === rider ? leg.count : 0;
         return have - spent <= 0;
     });
+    return found?.ability ?? null;
 }
 
 export function getManaTapOptionsDetailed(

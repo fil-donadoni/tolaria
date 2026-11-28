@@ -4490,6 +4490,101 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: 'Issue #1887 negative control for the modal shape (CR 700.2d — the mode is chosen at cast, so each mode is its own enumerated move). The "sacrifice a creature" mode makes the opponent lose its only creature, so it is NOT a no-op and must survive; the "sacrifice a planeswalker" mode against an opponent with no planeswalker still IS one and is correctly dropped — which is why this asserts a surviving cast rather than a byte-identical move list. Asserted on the legal set rather than on the chosen move because the Edict is an INSTANT: holding it through the bot\'s own main phase is legitimate play (the ADR 0021 hold-the-trick rule), so the pick is seed-sensitive while the legal set is not.',
     },
     {
+        // Issue #10830 — a no-op paid by SACRIFICING a mana source. The
+        // reported position, rewound one turn (the bug-report row's board):
+        // the opponent attacks with Questing Beast and a levelled Figure of
+        // Fable, the bot's four lands are tapped, Black Lotus is its only
+        // untapped red source and its hand is Duress alone. Sneak Attack's
+        // "{R}: You may put a creature card from your hand onto the
+        // battlefield" has nothing to put, so paying the {R} with the Lotus
+        // throws the Lotus away for nothing.
+        label: "dominance: does not sacrifice Black Lotus to activate Sneak Attack with no creature in hand",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a creature card in the bot's hand",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Sneak Attack", owner: "me", zone: "battlefield" },
+                { name: "Black Lotus", owner: "me", zone: "battlefield" },
+                {
+                    name: "Blackcleave Cliffs",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                    count: 2,
+                },
+                {
+                    name: "Shadowy Backstreet",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                { name: "Duress", owner: "me", zone: "hand" },
+                { name: "Questing Beast", owner: "opp", zone: "battlefield" },
+                { name: "Figure of Fable", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Fanatic of Rhonas",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                { name: "Ketria Triome", owner: "opp", zone: "battlefield" },
+                { name: "Mountain", owner: "opp", zone: "battlefield" },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+                { name: "Sear", owner: "opp", zone: "hand" },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 18,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 12, opp: 20 },
+            activePlayer: "opp",
+            priority: "opp",
+            // Figure of Fable's two level-ups, as the report recorded them:
+            // a 4/5.
+            continuousEffects: [
+                {
+                    layer: 7,
+                    sublayer: "7b",
+                    affected: { opp: ["Figure of Fable"] },
+                    controller: "opp",
+                    payload: { kind: "pt-set", power: 2, toughness: 3 },
+                },
+                {
+                    layer: 7,
+                    sublayer: "7b",
+                    affected: { opp: ["Figure of Fable"] },
+                    controller: "opp",
+                    payload: { kind: "pt-set", power: 4, toughness: 5 },
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "declare-attackers",
+                cards: ["Questing Beast", "Figure of Fable"],
+                haltForDefenderResponse: true,
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 600 },
+        seeds: [1, 2, 3, 4, 5, 6],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Sneak Attack" }],
+        },
+        note: "Issue #10830. Before the fix the probe forgave a tapped land but not a SACRIFICED mana source, so the Lotus-paid activation reached the search and, under attack, was picked on seeds 1, 5 and 6 at 600 iterations (measured on the base tip). `sacrificedManaSourcesSpent` (`gre/ai/dominance.ts`) now reads the Lotus's departure as spent cost, so the activation is proved dominated by `pass` and never enters the tree. Life 12 rather than the report's 8 keeps the position unlost (8 damage incoming): the point is the Lotus, not the race.",
+    },
+    {
         label: "dominance: does not activate Sandstorm Salvager with no tokens out",
         classification: {
             kind: "conditional",
