@@ -386,6 +386,9 @@ function lowerAmount(
     // CR 702.179f — "your speed" is the speed of the effect's controller.
     if (amount.kind === "speed")
         return lowered({ speed: { of: "controller" } });
+    // CR 207.2c + CR 305.6 — Domain is the effect controller's tally.
+    if (amount.kind === "domain")
+        return lowered({ domain: { of: "controller" } });
     if (amount.kind === "event-amount")
         return site.antecedents?.amount !== undefined
             ? lowered(site.antecedents.amount)
